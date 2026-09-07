@@ -1,5 +1,5 @@
 /**
- * TaxMyMotor Supplier Portal — frontend-only prototype.
+ * Supplier Portal — frontend-only prototype.
  * Mock data throughout: no backend, no real file storage.
  *
  * @format

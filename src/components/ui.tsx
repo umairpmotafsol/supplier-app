@@ -1,6 +1,6 @@
 /**
- * UI kit — trimmed port of the main app's kit, keeping the supplier
- * portal visually consistent without the checkout-only pieces.
+ * UI kit — the shared pieces the supplier portal builds on, without
+ * the checkout-only components.
  */
 import React, {forwardRef, useState} from 'react';
 import {
@@ -403,7 +403,12 @@ type InputProps = TextInputProps & {
 };
 
 export const Input = forwardRef<TextInputRef, InputProps>(function TextField(
-  {leadingIcon, trailingIcon, onTrailingPress, invalid, ...props},
+  /*
+   * `style` is pulled out rather than left in the spread: it belongs on
+   * the TextInput, and the spread lands before the style prop below, so
+   * anything passed through would be silently dropped.
+   */
+  {leadingIcon, trailingIcon, onTrailingPress, invalid, style, ...props},
   ref,
 ) {
   const [focused, setFocused] = useState(false);
@@ -411,6 +416,7 @@ export const Input = forwardRef<TextInputRef, InputProps>(function TextField(
     <View
       style={[
         inputStyles.wrap,
+        props.multiline && inputStyles.wrapMultiline,
         focused && {borderColor: colors.orange},
         invalid && !focused && {borderColor: colors.orangeLine},
       ]}>
@@ -430,7 +436,7 @@ export const Input = forwardRef<TextInputRef, InputProps>(function TextField(
           setFocused(false);
           props.onBlur?.(e);
         }}
-        style={inputStyles.input}
+        style={[inputStyles.input, style]}
       />
       {trailingIcon ? (
         <Pressable
@@ -455,6 +461,7 @@ const inputStyles = StyleSheet.create({
     borderRadius: radius.ctl,
     paddingHorizontal: s(13),
   },
+  wrapMultiline: {alignItems: 'flex-start'},
   input: {
     flex: 1,
     minWidth: 0,

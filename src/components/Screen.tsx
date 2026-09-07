@@ -14,6 +14,7 @@ import type {StyleProp, ViewStyle} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {colors, layout, s} from '../theme/tokens';
+import {column} from '../theme/common';
 
 export function Screen({children}: {children: React.ReactNode}) {
   return (
@@ -43,6 +44,7 @@ export function Body({
       showsVerticalScrollIndicator={false}
       contentContainerStyle={[
         styles.pad,
+        column,
         center && styles.centered,
         contentStyle,
       ]}>
@@ -67,6 +69,7 @@ export function Dock({
     <View
       style={[
         styles.dock,
+        column,
         standalone && {paddingBottom: s(13) + insets.bottom},
       ]}>
       {children}

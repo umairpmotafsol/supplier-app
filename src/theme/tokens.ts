@@ -1,5 +1,5 @@
 /**
- * TAXMYMOTOR — DESIGN TOKENS
+ * DESIGN TOKENS
  * Ported 1:1 from the reference design (variant 1 "Grotesk").
  * Black + orange, layered dark charcoal/navy surfaces.
  */
@@ -23,6 +23,19 @@ export const SCALE = Math.min(
 
 /** Scale a reference-unit measurement to device units. */
 export const s = (n: number) => PixelRatio.roundToNearestPixel(n * SCALE);
+
+/* ------------------------------------------------------------------
+ * Tablet
+ * The supplier app ships for iPad. SCALE is capped at 1.55, so on a
+ * tablet the type grows a little while the window grows a lot — left
+ * alone, a card would stretch the full 1024–1366pt and the text would
+ * run in unreadable lines. Content is therefore held to a fixed column
+ * and centred. On a phone the cap never binds, so nothing changes.
+ * ---------------------------------------------------------------- */
+export const IS_TABLET = VIEWPORT_WIDTH >= 700;
+
+/** Widest the content column is allowed to get, in points. */
+export const CONTENT_MAX = 680;
 
 export const colors = {
   /* app surfaces */

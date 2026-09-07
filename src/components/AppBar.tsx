@@ -1,15 +1,18 @@
 /**
- * App bar with the signature orange rule underneath — ported from the
- * customer app, trimmed to what the supplier portal needs (no checkout
- * step counter or progress rail).
+ * App bar with the orange rule underneath, trimmed to what the supplier
+ * portal needs (no checkout step counter or progress rail).
+ *
+ * The bar carries no company mark. Suppliers are contractors working
+ * orders, not customers of the consumer product, so the portal names
+ * itself and nothing else.
  */
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {colors, font, radius, s, track} from '../theme/tokens';
-import {common} from '../theme/common';
-import Icon, {Logo, iconSize} from './Icon';
+import {column, common} from '../theme/common';
+import Icon, {iconSize} from './Icon';
 
 type Props = {
   onBack?: () => void;
@@ -21,20 +24,12 @@ export default function AppBar({onBack, title, right}: Props) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.bar, {paddingTop: insets.top + s(6)}]}>
-      <View style={styles.row}>
+      <View style={[styles.row, column]}>
         {onBack ? (
           <IconButton icon="back" onPress={onBack} label="Go back" />
         ) : null}
 
-        <View style={styles.mark}>
-          <Logo size={s(26)} />
-          <View>
-            <Text style={styles.name}>
-              Tax<Text style={{color: colors.orange}}>My</Text>Motor
-            </Text>
-            <Text style={styles.tagline}>SUPPLIER PORTAL</Text>
-          </View>
-        </View>
+        <Text style={styles.name}>Supplier Portal</Text>
 
         {title ? (
           <>
@@ -57,7 +52,7 @@ export function IconButton({
   label,
   small,
 }: {
-  icon: 'back' | 'filter' | 'edit';
+  icon: 'back' | 'filter' | 'edit' | 'logout';
   onPress?: () => void;
   ring?: boolean;
   label?: string;
@@ -96,19 +91,11 @@ const styles = StyleSheet.create({
     gap: s(10),
     minHeight: s(32),
   },
-  mark: {flexDirection: 'row', alignItems: 'center', gap: s(8)},
   name: {
     fontFamily: font.display,
     fontSize: s(13.5),
     letterSpacing: track(-0.02, s(13.5)),
     color: colors.ink,
-  },
-  tagline: {
-    fontFamily: font.semibold,
-    fontSize: s(6),
-    letterSpacing: track(0.2, s(6)),
-    color: colors.ink3,
-    marginTop: s(2),
   },
   divider: {width: 1, height: s(20), backgroundColor: colors.line},
   title: {

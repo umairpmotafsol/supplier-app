@@ -38,6 +38,7 @@ export type IconName =
   | 'edit'
   | 'cal'
   | 'card'
+  | 'bank'
   | 'swap'
   | 'car'
   | 'whatsapp'
@@ -50,6 +51,8 @@ export type IconName =
   | 'download'
   | 'send'
   | 'print'
+  | 'camera'
+  | 'logout'
   | 'alert';
 
 type Props = {
@@ -292,6 +295,19 @@ function glyph(name: IconName, p: StrokeProps) {
           <Line {...p} x1="15.8" y1="2.8" x2="15.8" y2="7" />
         </>
       );
+    case 'bank':
+      /* Classical bank front: pediment, four columns, plinth. */
+      return (
+        <>
+          <Polyline {...p} points="2.6 9 12 3.6 21.4 9" />
+          <Line {...p} x1="2.6" y1="9" x2="21.4" y2="9" />
+          <Line {...p} x1="5.6" y1="11.4" x2="5.6" y2="17.4" />
+          <Line {...p} x1="9.9" y1="11.4" x2="9.9" y2="17.4" />
+          <Line {...p} x1="14.1" y1="11.4" x2="14.1" y2="17.4" />
+          <Line {...p} x1="18.4" y1="11.4" x2="18.4" y2="17.4" />
+          <Line {...p} x1="3.2" y1="20.2" x2="20.8" y2="20.2" />
+        </>
+      );
     case 'card':
       return (
         <>
@@ -394,6 +410,24 @@ function glyph(name: IconName, p: StrokeProps) {
           <Rect {...p} x="6.4" y="14" width="11.2" height="6.8" />
         </>
       );
+    case 'camera':
+      return (
+        <>
+          <Path
+            {...p}
+            d="M4.6 8.4h2.9l1.5-2.2h6l1.5 2.2h2.9a1.6 1.6 0 0 1 1.6 1.6v7.4a1.6 1.6 0 0 1-1.6 1.6H4.6A1.6 1.6 0 0 1 3 17.4V10a1.6 1.6 0 0 1 1.6-1.6z"
+          />
+          <Circle {...p} cx="12" cy="13.6" r="3.1" />
+        </>
+      );
+    case 'logout':
+      return (
+        <>
+          <Path {...p} d="M9.6 20.4H6a2 2 0 0 1-2-2V5.6a2 2 0 0 1 2-2h3.6" />
+          <Polyline {...p} points="15.2 16.4 19.6 12 15.2 7.6" />
+          <Line {...p} x1="19.6" y1="12" x2="9.2" y2="12" />
+        </>
+      );
     case 'alert':
       return (
         <>
@@ -408,40 +442,6 @@ function glyph(name: IconName, p: StrokeProps) {
     default:
       return null;
   }
-}
-
-/** TaxMyMotor roundel. */
-export function Logo({size = s(26)}: {size?: number}) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 48 48">
-      <Circle cx="24" cy="24" r="22" fill={colors.white} />
-      <Path d="M19.5 45 L23 22 L25.6 22 L29.6 45 Z" fill="#C6CDD6" />
-      <Path
-        d="M24 26.5v3.2M24.6 33v3.2M25.4 39.5v3.2"
-        stroke={colors.white}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-      />
-      <Path
-        d="M9 27A15 15 0 0 1 39 27"
-        stroke="#39424E"
-        strokeWidth={1.5}
-        fill="none"
-        strokeLinecap="round"
-        strokeDasharray="1.4 3.4"
-      />
-      <Path d="M18.4 17.6h11.2l1.6 2.6H16.8z" fill="#39424E" />
-      <Path d="M20.4 15.4h7.2l1.4 2.2H19z" fill="#39424E" />
-      <Path
-        d="M13.6 25.4l5.6 5.8L38.4 9.4"
-        stroke={colors.orange}
-        strokeWidth={4.6}
-        fill="none"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
 }
 
 const STAR_POSITIONS: Array<[number, number]> = [
