@@ -7,6 +7,11 @@
  *
  * There is no accept action (orders arrive assigned) and no download.
  *
+ * It shows the order, not the person behind it. A supplier raises an
+ * invoice against an order number and a plate, so the customer's name
+ * and home address are not theirs to hold — the only name here is the
+ * account holder on a Direct Debit mandate, which is the mandate.
+ *
  * A Direct Debit order carries one extra job: checking the customer's
  * mandate details. Until those are approved the invoice button is not
  * here, because an invoice raised against a mandate that was never
@@ -42,7 +47,6 @@ import {
   gbp,
   hasBankReview,
   statusInfo,
-  supplierName,
 } from '../data/mock';
 import {useToast} from '../components/Toast';
 import {useSupplier} from '../state/SupplierState';
@@ -82,12 +86,10 @@ export default function OrderDetailScreen() {
       <AppBar onBack={() => navigation.goBack()} title={order.orderNumber} />
       <Body>
         <View style={styles.headRow}>
-          <H2 style={{marginBottom: 0}}>{order.customerName}</H2>
+          <H2 style={{marginBottom: 0}}>{order.vehicleModel}</H2>
           <Badge label={info.label} tone={info.tone} />
         </View>
-        <Text style={styles.sub}>
-          {order.reg} · {order.vehicleModel}
-        </Text>
+        <Text style={styles.sub}>{order.reg}</Text>
 
         {order.status === 'overdue' ? (
           <Banner icon="alert" tone="red" style={{marginBottom: s(14)}}>
@@ -104,24 +106,18 @@ export default function OrderDetailScreen() {
         <List style={{marginBottom: s(16)}}>
           <ListItem
             icon="doc"
+            title="Order number"
+            value={order.orderNumber}
+          />
+          <ListItem
+            icon="doc"
             title="Order type"
             value={ORDER_TYPE_LABEL[order.orderType]}
           />
-          <ListItem icon="cal" title="Order date" value={order.orderDate} />
           <ListItem
-            icon="car"
-            title="Vehicle"
-            value={order.reg + ' · ' + order.vehicleModel}
-          />
-          <ListItem
-            icon="user"
-            title="Assigned to"
-            value={supplierName(order.supplierId)}
-          />
-          <ListItem
-            icon="home"
-            title="Delivery address"
-            value={order.deliveryAddress}
+            icon="cal"
+            title="Order date"
+            value={order.orderDate}
             last
           />
         </List>
@@ -170,16 +166,6 @@ export default function OrderDetailScreen() {
                 icon="doc"
                 title="Taxation class"
                 value={order.v62.taxationClass}
-              />
-              <ListItem
-                icon="user"
-                title="Keeper"
-                value={order.v62.keeperName}
-              />
-              <ListItem
-                icon="home"
-                title="Keeper address"
-                value={order.v62.keeperAddress}
                 last
               />
             </List>
@@ -196,8 +182,8 @@ export default function OrderDetailScreen() {
               </Banner>
             ) : bankWithCustomer(order) ? (
               <Banner icon="clock" tone="orange" style={styles.banner}>
-                Sent back to {order.customerName}. The upload timer is paused
-                until they return it.
+                Sent back to the customer. The upload timer is paused until
+                they return it.
               </Banner>
             ) : (
               <Banner icon="bank" tone="orange" style={styles.banner}>
@@ -266,7 +252,7 @@ export default function OrderDetailScreen() {
         <Eyebrow>Delivery</Eyebrow>
         {order.deliveredAt ? (
           <Banner icon="check" tone="green" style={{marginBottom: s(16)}}>
-            Sent to {order.customerName} over WhatsApp.
+            Sent to the customer over WhatsApp.
           </Banner>
         ) : awaitingWhatsappSend(order) ? (
           <Banner icon="whatsapp" tone="orange" style={{marginBottom: s(16)}}>

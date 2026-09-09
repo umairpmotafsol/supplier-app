@@ -126,6 +126,7 @@ export default function RootNavigator() {
         now={now}
         eyebrow="READY TO SEND VIA WHATSAPP"
         icon="whatsapp"
+        showCustomer
         actionLabel="Send via WhatsApp"
         actionIcon="whatsapp"
         onAction={order => {

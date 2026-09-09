@@ -82,8 +82,8 @@ export default function RequestBankChangesScreen() {
       <Body>
         <H2>Request changes</H2>
         <Banner icon="info" tone="orange" style={styles.banner}>
-          The order goes back to {order.customerName} and the upload timer
-          pauses until they return it.
+          The order goes back to the customer and the upload timer pauses
+          until they return it.
         </Banner>
 
         <Eyebrow>What needs correcting?</Eyebrow>

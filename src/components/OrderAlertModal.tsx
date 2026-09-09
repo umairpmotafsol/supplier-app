@@ -6,6 +6,10 @@
  *
  * Both stand in for a push notification, and both do the same thing:
  * name the order, show where its timer stands, and offer one action.
+ *
+ * Only the admin's alert names the customer, because the admin is about
+ * to message them. The supplier's alert identifies the job by its order
+ * number and plate instead.
  */
 import React from 'react';
 import {Modal, Pressable, StyleSheet, Text, View} from 'react-native';
@@ -27,6 +31,7 @@ export function OrderAlertModal({
   onAction,
   onDismiss,
   dismissLabel = 'Later',
+  showCustomer,
 }: {
   order: Order | null;
   now: number;
@@ -37,6 +42,8 @@ export function OrderAlertModal({
   onAction: (order: Order) => void;
   onDismiss: () => void;
   dismissLabel?: string;
+  /** The admin's alert only — see the note above. */
+  showCustomer?: boolean;
 }) {
   return (
     <Modal
@@ -63,8 +70,8 @@ export function OrderAlertModal({
               <Plate reg={order.reg} />
               <View style={common.fill}>
                 <Text style={styles.orderNumber}>{order.orderNumber}</Text>
-                <Text style={styles.customer} numberOfLines={1}>
-                  {order.customerName}
+                <Text style={styles.who} numberOfLines={1}>
+                  {showCustomer ? order.customerName : order.vehicleModel}
                 </Text>
               </View>
             </View>
@@ -140,7 +147,7 @@ const styles = StyleSheet.create({
     letterSpacing: track(-0.02, s(15)),
     color: colors.ink,
   },
-  customer: {
+  who: {
     fontFamily: font.regular,
     fontSize: s(11),
     color: colors.ink3,

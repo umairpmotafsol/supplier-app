@@ -5,9 +5,12 @@
  * order instead, and carries no action.
  *
  * The order number gets a line of its own. Sharing one row with the
- * plate, the customer and the status badge left it squeezed into a
+ * plate, the vehicle and the status badge left it squeezed into a
  * narrow column between two graphics, which is the last place you want
  * a code you have to read character by character.
+ *
+ * The customer is not named here. A supplier works to the order number
+ * and the plate; who owns the car tells them nothing they act on.
  */
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
@@ -66,8 +69,8 @@ export function OrderCard({
       <View style={styles.top}>
         <Plate reg={order.reg} />
         <View style={common.fill}>
-          <Text style={styles.customer} numberOfLines={1}>
-            {order.customerName}
+          <Text style={styles.vehicle} numberOfLines={1}>
+            {order.vehicleModel}
           </Text>
           <Text style={styles.meta} numberOfLines={1}>
             {ORDER_TYPE_LABEL[order.orderType]} · {gbp(order.total)}
@@ -154,7 +157,7 @@ const styles = StyleSheet.create({
     letterSpacing: track(0.06, s(14)),
     color: colors.ink,
   },
-  customer: {
+  vehicle: {
     fontFamily: font.semibold,
     fontSize: s(12),
     color: colors.ink,
