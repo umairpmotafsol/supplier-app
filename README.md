@@ -1,5 +1,13 @@
 This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
+# Supplier Portal
+
+A frontend-only React Native 0.83 prototype (JavaScript). All data is mocked — there is no backend.
+
+- **Project layout and the old → new file map:** [docs/MIGRATION.md](docs/MIGRATION.md)
+- **API base URL:** set `BASE_URL` in [src/resources/utils/apiConfig.js](src/resources/utils/apiConfig.js). It is empty on purpose; no screen calls the network.
+- **Development accounts** are listed on the sign-in screen.
+
 # Getting Started
 
 > **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
@@ -66,7 +74,7 @@ This is one way to run your app — you can also build it directly from Android 
 
 Now that you have successfully run the app, let's make changes!
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+Open `App.js` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
 
 When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
 

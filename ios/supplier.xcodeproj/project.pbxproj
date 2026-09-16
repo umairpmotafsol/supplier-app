@@ -7,22 +7,39 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0C71F0729DDF74916E234904 /* Archivo-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8EAB08BAF46E1CECD0AF207A /* Archivo-SemiBold.ttf */; };
 		0C80B921A6F3F58F76C31292 /* libPods-supplier.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-supplier.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		14CBF1EE253A8A654B432A9D /* Inter-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D62B35BF82E67A868C47BDA9 /* Inter-Regular.ttf */; };
+		3DFE32200B6DC75807327287 /* Inter-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 6DB61ED53502274553BCD2A0 /* Inter-Bold.ttf */; };
+		5EE930912E74FB7AB2CC0DCA /* Archivo-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 0D6FDA7AFAA8D56634B0FA5F /* Archivo-Bold.ttf */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		964A2B46DA2604E11011BA73 /* Archivo-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 1568F270853BAFEBE0A9B803 /* Archivo-ExtraBold.ttf */; };
+		9A0714B527F23A64109E2887 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
+		A4C035A3DF8EB3C192DAED4E /* Inter-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 0D7F58A2645E4973A78D6EFC /* Inter-SemiBold.ttf */; };
+		B89B2EA7AD0D9BBECE41A5CA /* Inter-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 91B75E5270CF32EB464D5FC4 /* Inter-Medium.ttf */; };
+		D7F7AB296300CD250A29FD87 /* Oswald-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BA65E4279539607259D1C024 /* Oswald-SemiBold.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0D6FDA7AFAA8D56634B0FA5F /* Archivo-Bold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "Archivo-Bold.ttf"; sourceTree = "<group>"; };
+		0D7F58A2645E4973A78D6EFC /* Inter-SemiBold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "Inter-SemiBold.ttf"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* supplier.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = supplier.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = supplier/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = supplier/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = supplier/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		1568F270853BAFEBE0A9B803 /* Archivo-ExtraBold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "Archivo-ExtraBold.ttf"; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-supplier.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-supplier.debug.xcconfig"; path = "Target Support Files/Pods-supplier/Pods-supplier.debug.xcconfig"; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-supplier.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-supplier.release.xcconfig"; path = "Target Support Files/Pods-supplier/Pods-supplier.release.xcconfig"; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-supplier.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-supplier.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		6DB61ED53502274553BCD2A0 /* Inter-Bold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "Inter-Bold.ttf"; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = supplier/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = supplier/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		8EAB08BAF46E1CECD0AF207A /* Archivo-SemiBold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "Archivo-SemiBold.ttf"; sourceTree = "<group>"; };
+		91B75E5270CF32EB464D5FC4 /* Inter-Medium.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "Inter-Medium.ttf"; sourceTree = "<group>"; };
+		BA65E4279539607259D1C024 /* Oswald-SemiBold.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "Oswald-SemiBold.ttf"; sourceTree = "<group>"; };
+		D62B35BF82E67A868C47BDA9 /* Inter-Regular.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = "Inter-Regular.ttf"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -50,6 +67,22 @@
 			name = supplier;
 			sourceTree = "<group>";
 		};
+		19128703706020D56CAF357C /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				0D6FDA7AFAA8D56634B0FA5F /* Archivo-Bold.ttf */,
+				1568F270853BAFEBE0A9B803 /* Archivo-ExtraBold.ttf */,
+				8EAB08BAF46E1CECD0AF207A /* Archivo-SemiBold.ttf */,
+				6DB61ED53502274553BCD2A0 /* Inter-Bold.ttf */,
+				91B75E5270CF32EB464D5FC4 /* Inter-Medium.ttf */,
+				D62B35BF82E67A868C47BDA9 /* Inter-Regular.ttf */,
+				0D7F58A2645E4973A78D6EFC /* Inter-SemiBold.ttf */,
+				BA65E4279539607259D1C024 /* Oswald-SemiBold.ttf */,
+			);
+			name = Fonts;
+			path = ../assets/fonts;
+			sourceTree = "<group>";
+		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -74,6 +107,7 @@
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				BBD78D7AC51CEA395F1C20DB /* Pods */,
+				19128703706020D56CAF357C /* Fonts */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -159,6 +193,15 @@
 			files = (
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
+				9A0714B527F23A64109E2887 /* PrivacyInfo.xcprivacy in Resources */,
+				5EE930912E74FB7AB2CC0DCA /* Archivo-Bold.ttf in Resources */,
+				964A2B46DA2604E11011BA73 /* Archivo-ExtraBold.ttf in Resources */,
+				0C71F0729DDF74916E234904 /* Archivo-SemiBold.ttf in Resources */,
+				3DFE32200B6DC75807327287 /* Inter-Bold.ttf in Resources */,
+				B89B2EA7AD0D9BBECE41A5CA /* Inter-Medium.ttf in Resources */,
+				14CBF1EE253A8A654B432A9D /* Inter-Regular.ttf in Resources */,
+				A4C035A3DF8EB3C192DAED4E /* Inter-SemiBold.ttf in Resources */,
+				D7F7AB296300CD250A29FD87 /* Oswald-SemiBold.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -370,6 +413,7 @@
 				);
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CFLAGS = "$(inherited)";
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-DFOLLY_NO_CONFIG",
@@ -378,7 +422,10 @@
 					"-DFOLLY_CFG_NO_COROUTINES=1",
 					"-DFOLLY_HAVE_CLOCK_GETTIME=1",
 				);
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				USE_HERMES = true;
 			};
 			name = Debug;
 		};
@@ -435,6 +482,7 @@
 					"\"$(inherited)\"",
 				);
 				MTL_ENABLE_DEBUG_INFO = NO;
+				OTHER_CFLAGS = "$(inherited)";
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-DFOLLY_NO_CONFIG",
@@ -443,7 +491,9 @@
 					"-DFOLLY_CFG_NO_COROUTINES=1",
 					"-DFOLLY_HAVE_CLOCK_GETTIME=1",
 				);
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
+				USE_HERMES = true;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;

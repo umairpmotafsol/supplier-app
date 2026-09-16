@@ -2,6 +2,34 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+      Camera capture (MediaPicker → image-crop-picker). Requested at runtime
+      by src/resources/utils/permissions.js.
+
+      Deliberately absent: READ_MEDIA_IMAGES / READ_MEDIA_VIDEO /
+      READ_EXTERNAL_STORAGE. The gallery opens through the system Photo
+      Picker (API 33+, backported below that via Google Play services),
+      which needs no storage permission on any Android version. Documents
+      come through the system document picker, which needs none either.
+      RECORD_AUDIO is absent because video capture is delegated to the
+      system camera app.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!--
+      image-crop-picker declares WRITE_EXTERNAL_STORAGE up to Android 10
+      (API 29), for saving camera shots on those versions. Left alone, the
+      manifest merger *implies* READ_EXTERNAL_STORAGE for every Android
+      version; declaring it here with the same cap keeps it legacy-only.
+    -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+
+    <!-- Tablets without a camera can still install the app. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.front" android:required="false" />
+
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"
