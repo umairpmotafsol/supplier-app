@@ -14,6 +14,7 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 
 import { fileNameFromUri, mimeTypeFor } from '../../resources/utils/helper';
+import { UPLOAD_TIMEOUT_MS } from '../../resources/utils/apiConfig';
 import { api } from '../../resources/axios/AxiosInterceptorFunction';
 import { API_URL, buildUrl } from '../../resources/utils/apiUrl';
 import { awaitingWhatsappSend, toAppOrder } from '../../data/mock';
@@ -72,13 +73,17 @@ export const uploadInvoice = createAsyncThunk(
     const body = new FormData();
     body.append('file', {
       uri: photo.uri,
-      name: fileNameFromUri(photo.uri),
-      type: mimeTypeFor(photo.uri),
+      /* The picker knows both better than the path does; it only falls
+         back to the uri for a photo that arrived without them. */
+      name: photo.name ?? fileNameFromUri(photo.uri),
+      type: photo.type ?? mimeTypeFor(photo.uri),
     });
     try {
       return await api.post(
         buildUrl(API_URL.INVOICE_UPLOAD, { orderId: id }),
         body,
+        /* A photo over a phone connection needs longer than a JSON call. */
+        { timeout: UPLOAD_TIMEOUT_MS },
       );
     } catch (error) {
       return rejectWithValue(error?.described?.message ?? error.message);

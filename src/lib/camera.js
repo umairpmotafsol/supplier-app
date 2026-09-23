@@ -1,32 +1,42 @@
 /**
  * The camera seam.
  *
- * The flow is: Upload Invoice -> camera opens -> photo -> submit. Opening
- * the real camera needs a native module (react-native-image-picker's
- * `launchCamera`, or react-native-vision-camera), which is not installed
- * here and cannot be built or verified from this environment. So this
- * module fakes the capture and the app draws its own viewfinder, which
- * keeps the flow demonstrable end to end.
+ * The flow is: Upload Invoice -> camera opens -> photo -> submit.
  *
- * To make it real, install the dependency and replace the body of
- * `captureInvoicePhoto` with, e.g.:
- *
- *   import {launchCamera} from 'react-native-image-picker';
- *   const res = await launchCamera({mediaType: 'photo', saveToPhotos: false});
- *   const asset = res.assets?.[0];
- *   return asset?.uri ? {uri: asset.uri, capturedAt: new Date().toISOString()} : null;
- *
- * Nothing else in the app has to change: every caller already treats the
- * result as "a photo, or the user backed out".
+ * `pickMedia` — MediaPicker's headless half — already owns the
+ * permission dance and every way a native picker can end. This narrows
+ * it to the one thing the invoice flow wants (one photo, no cropping
+ * step, so the flow stays two taps) and stamps it with the moment it was
+ * taken, leaving the caller a single result to switch on.
  */
+import { pickMedia } from '../components/organisms/MediaPicker';
 
-/** Stand-in for the shutter. Returns null if the supplier backs out. */
-export async function captureInvoicePhoto(orderNumber) {
+/**
+ * Opens the camera for one invoice photo.
+ *
+ * The photo it returns carries a real `file://` uri from the device —
+ * which is what makes it uploadable. Anything else is a reason there is
+ * no photo, for the caller to report or ignore as it sees fit.
+ *
+ * @returns {Promise<
+ *   | {status: 'picked', photo: {uri: string, name: string, type: string, capturedAt: string}}
+ *   | {status: 'cancelled'}
+ *   | {status: 'denied' | 'blocked', permission: string}
+ *   | {status: 'error', message: string}
+ * >}
+ */
+export async function captureInvoicePhoto() {
+  const result = await pickMedia('camera', { mediaType: 'photo' });
+  if (result.status !== 'picked') {
+    return result;
+  }
   return {
-    uri: 'mock://invoice-' + orderNumber + '.jpg',
-    capturedAt: new Date().toISOString(),
+    status: 'picked',
+    photo: {
+      ...result.assets[0],
+      capturedAt: new Date().toISOString(),
+    },
   };
 }
 
-/** True once a real camera module is wired in. Drives the "stand-in" note. */
-export const HAS_NATIVE_CAMERA = false;
+export default captureInvoicePhoto;

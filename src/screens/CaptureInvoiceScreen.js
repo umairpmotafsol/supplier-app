@@ -1,24 +1,28 @@
 /**
- * The camera step: Upload Invoice -> viewfinder -> shutter -> Submit.
+ * The camera step: Upload Invoice -> shutter -> review -> Submit.
  *
  * Two taps after the button, which is as short as the flow gets while
- * still letting the supplier see they photographed the right document.
+ * still letting the supplier see they photographed the right document —
+ * so the shot is shown back to them full-frame before it goes anywhere.
  *
- * The viewfinder is drawn, not live. Opening the real camera needs a
- * native module that isn't installed here — see src/lib/camera.ts, which
- * is the one place that changes when it is.
+ * The shutter opens the device camera through src/lib/camera.js. A
+ * capture that produces no photo is not always a failure: backing out
+ * and a refused permission are both ordinary, and only a permission
+ * that has been turned off for good is worth interrupting them over.
  */
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 
 import CustomHeader from '../components/molecules/CustomHeader';
 import { Body, Dock, Screen } from '../components/Screen';
-import { Cta, Hint } from '../components/ui';
+import { Cta } from '../components/ui';
 import { useToast } from '../components/molecules/Toast';
+import PopUp from '../components/molecules/PopUp';
 import Icon from '../components/atoms/Icon';
 import { colors, font, radius, s, track } from '../theme/tokens';
-import { HAS_NATIVE_CAMERA, captureInvoicePhoto } from '../lib/camera';
+import { captureInvoicePhoto } from '../lib/camera';
+import { blockedMessage, openAppSettings } from '../resources/utils/permissions';
 import { useSupplier } from '../store/useSupplier';
 import { ROUTES } from '../navigation/routes';
 
@@ -30,6 +34,8 @@ export default function CaptureInvoiceScreen() {
   const [photo, setPhoto] = useState(null);
   const [busy, setBusy] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  /** The permission the OS will no longer prompt for, if any. */
+  const [blocked, setBlocked] = useState(null);
 
   const order = orders.find(o => o.id === route.params.orderId);
 
@@ -46,10 +52,23 @@ export default function CaptureInvoiceScreen() {
 
   const onShutter = async () => {
     setBusy(true);
-    const shot = await captureInvoicePhoto(order.orderNumber);
+    const result = await captureInvoicePhoto();
     setBusy(false);
-    if (shot) {
-      setPhoto(shot);
+
+    switch (result.status) {
+      case 'picked':
+        setPhoto(result.photo);
+        break;
+      case 'blocked':
+        /* The OS will not ask again, so offer Settings instead. */
+        setBlocked(result.permission);
+        break;
+      case 'error':
+        toast({ message: result.message, icon: 'alert' });
+        break;
+      default:
+        /* cancelled / denied: they chose not to. The next tap asks again. */
+        break;
     }
   };
 
@@ -83,34 +102,33 @@ export default function CaptureInvoiceScreen() {
         </Text>
 
         <View style={[styles.viewfinder, photo && styles.viewfinderShot]}>
-          <Corner style={styles.tl} />
-          <Corner style={styles.tr} />
-          <Corner style={styles.bl} />
-          <Corner style={styles.br} />
-          <Icon
-            name={photo ? 'doc' : 'camera'}
-            size={s(46)}
-            color={photo ? colors.green : colors.ink4}
-            strokeWidth={1.4}
-          />
-
-          <Text style={[styles.vfText, photo && { color: colors.green }]}>
-            {photo ? 'INVOICE CAPTURED' : 'CAMERA PREVIEW'}
-          </Text>
           {photo ? (
-            <Text style={styles.vfFile} numberOfLines={1}>
-              {photo.uri.replace('mock://', '')}
-            </Text>
-          ) : null}
+            /*
+             * The shot itself, contained rather than cropped: a corner
+             * cut off here is a total they cannot read later.
+             */
+            <Image
+              source={{ uri: photo.uri }}
+              style={styles.shot}
+              resizeMode="contain"
+              accessibilityLabel="The invoice you just photographed"
+            />
+          ) : (
+            <>
+              <Corner style={styles.tl} />
+              <Corner style={styles.tr} />
+              <Corner style={styles.bl} />
+              <Corner style={styles.br} />
+              <Icon
+                name="camera"
+                size={s(46)}
+                color={colors.ink4}
+                strokeWidth={1.4}
+              />
+              <Text style={styles.vfText}>TAP THE SHUTTER</Text>
+            </>
+          )}
         </View>
-
-        {HAS_NATIVE_CAMERA ? null : (
-          <Hint icon="info">
-            The device camera isn't wired up in this prototype, so the shutter
-            stands in for a real capture. The flow, the timer and the upload are
-            all real.
-          </Hint>
-        )}
       </Body>
 
       <Dock standalone>
@@ -140,6 +158,21 @@ export default function CaptureInvoiceScreen() {
           />
         )}
       </Dock>
+
+      <PopUp
+        visible={!!blocked}
+        tone="orange"
+        icon="camera"
+        title="Camera access needed"
+        message={blocked ? blockedMessage(blocked) : ''}
+        confirmLabel="Open Settings"
+        onConfirm={() => {
+          setBlocked(null);
+          openAppSettings();
+        }}
+        cancelLabel="Not now"
+        onCancel={() => setBlocked(null)}
+      />
     </Screen>
   );
 }
@@ -171,18 +204,13 @@ const styles = StyleSheet.create({
     gap: s(10),
     marginBottom: s(14),
   },
-  viewfinderShot: { borderColor: colors.green },
+  viewfinderShot: { borderColor: colors.green, overflow: 'hidden' },
+  shot: { width: '100%', height: '100%' },
   vfText: {
     fontFamily: font.semibold,
     fontSize: s(9.5),
     letterSpacing: track(0.16, s(9.5)),
     color: colors.ink4,
-  },
-  vfFile: {
-    fontFamily: font.regular,
-    fontSize: s(10),
-    color: colors.ink3,
-    maxWidth: '80%',
   },
   corner: {
     position: 'absolute',
