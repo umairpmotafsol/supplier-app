@@ -1,9 +1,13 @@
 /**
  * Derived views of the order book.
  *
- * These are the `useMemo`s the SupplierState context used to hold,
- * rewritten as memoised selectors so every screen reading the same view
- * shares one computation.
+ * `visibleOrders` used to filter the shared book down to the signed-in
+ * supplier's own orders; that scoping is now done server-side (see
+ * ordersSlice's `fetchOrders` — a supplier's `GET /supplier/orders`
+ * already comes back scoped to them, and an admin's `GET /admin/orders`
+ * is everything), so what this slice fetched *is* the visible book and
+ * `selectVisibleOrders` is just `selectOrders` by another name — kept
+ * so screens do not have to care which one applies to them.
  */
 import { createSelector } from '@reduxjs/toolkit';
 
@@ -12,20 +16,10 @@ import { awaitingWhatsappSend, bankAwaitingReview } from '../data/mock';
 export const selectSession = state => state.auth.session;
 export const selectIsAdmin = state => state.auth.session?.role === 'admin';
 export const selectOrders = state => state.orders.items;
+export const selectVisibleOrders = selectOrders;
 export const selectNow = state => state.common.now;
 const selectNewOrderId = state => state.orders.newOrderId;
 const selectReadyToSendId = state => state.orders.readyToSendId;
-
-/** Scoped to the signed-in supplier; identical to `orders` for admins. */
-export const selectVisibleOrders = createSelector(
-  [selectOrders, selectSession],
-  (orders, session) => {
-    if (!session || session.role === 'admin') {
-      return orders;
-    }
-    return orders.filter(order => order.supplierId === session.supplierId);
-  },
-);
 
 /*
  * Only pop the alert at the supplier it was routed to. An admin is
@@ -37,8 +31,7 @@ export const selectNewOrder = createSelector(
     if (!newOrderId || !session || session.role !== 'supplier') {
       return null;
     }
-    const order = orders.find(o => o.id === newOrderId);
-    return order && order.supplierId === session.supplierId ? order : null;
+    return orders.find(o => o.id === newOrderId) ?? null;
   },
 );
 

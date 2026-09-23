@@ -1,11 +1,13 @@
 /**
  * Everything the app keeps in the device Keychain / Android Keystore.
  *
- * Two separate entries, on purpose:
+ * Separate entries, on purpose:
  *
- *  - `TOKEN_SERVICE` holds the session token. The axios interceptor
- *    reads it on every request, so it must not sit behind a biometric
- *    prompt — a request cannot raise a Face ID sheet.
+ *  - `TOKEN_SERVICE` holds the access token. The axios interceptor reads
+ *    it on every request, so it must not sit behind a biometric prompt —
+ *    a request cannot raise a Face ID sheet.
+ *  - `REFRESH_SERVICE` holds the refresh token, read only when the
+ *    access token has expired and only to fetch a new pair.
  *  - `BIOMETRIC_SERVICE` holds the secret used to unlock the app. It is
  *    written *with* an access-control flag, so reading it is what raises
  *    the prompt.
@@ -20,10 +22,12 @@
 import * as Keychain from 'react-native-keychain';
 
 const TOKEN_SERVICE = 'com.supplier.session';
+const REFRESH_SERVICE = 'com.supplier.refresh';
 const BIOMETRIC_SERVICE = 'com.supplier.biometric';
 
 /** The username field is unused for the token; the Keychain requires one. */
 const TOKEN_ACCOUNT = 'session';
+const REFRESH_ACCOUNT = 'refresh';
 
 /* -------------------------------- session -------------------------------- */
 
@@ -74,6 +78,54 @@ export async function clearToken() {
   } catch {
     return false;
   }
+}
+
+/**
+ * Rotates on every refresh (see AuthService.refresh on the backend), so
+ * only the current one is ever kept — a stolen refresh token is usable
+ * once at most.
+ *
+ * @returns {Promise<boolean>}
+ */
+export async function saveRefreshToken(token) {
+  if (!token) {
+    return false;
+  }
+  const result = await Keychain.setGenericPassword(REFRESH_ACCOUNT, token, {
+    service: REFRESH_SERVICE,
+    accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+  });
+  return result !== false;
+}
+
+/** @returns {Promise<string | null>} */
+export async function getRefreshToken() {
+  try {
+    const credentials = await Keychain.getGenericPassword({
+      service: REFRESH_SERVICE,
+    });
+    return credentials ? credentials.password : null;
+  } catch {
+    return null;
+  }
+}
+
+/** @returns {Promise<boolean>} */
+export async function clearRefreshToken() {
+  try {
+    return await Keychain.resetGenericPassword({ service: REFRESH_SERVICE });
+  } catch {
+    return false;
+  }
+}
+
+/** Everything a signed-in session has stored — both tokens. */
+export async function clearSession() {
+  const [token, refresh] = await Promise.all([
+    clearToken(),
+    clearRefreshToken(),
+  ]);
+  return token && refresh;
 }
 
 /* ------------------------------- biometrics ------------------------------- */
@@ -154,6 +206,10 @@ export default {
   saveToken,
   getToken,
   clearToken,
+  saveRefreshToken,
+  getRefreshToken,
+  clearRefreshToken,
+  clearSession,
   getSupportedBiometry,
   saveBiometricCredentials,
   getBiometricCredentials,

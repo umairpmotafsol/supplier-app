@@ -1,11 +1,8 @@
 /**
- * Builds request URLs from the configured base URL.
- *
- * There is no endpoint table here. The backend does not exist yet (see
- * `apiConfig.js`), and a list of invented paths would be fiction that
- * reads as fact — the first person to wire up a real API would have to
- * check every one of them against the actual contract. Add the paths
- * here, as constants, when there is a contract to copy them from.
+ * Endpoint paths (relative to BASE_URL in apiConfig.js), matching
+ * tax-my-motor-backend's controllers, plus the URL-building helpers used
+ * both by the shared axios instance and by anything that needs an
+ * absolute URL of its own (the invoice photo, for instance).
  */
 import {
   API_NOT_CONFIGURED,
@@ -68,5 +65,54 @@ export function apiUrl(path, query) {
     path,
   )}${toQueryString(query)}`;
 }
+
+/**
+ * Fills `:param` segments (URL-encoded) in one of the paths below.
+ * Throws when a path parameter is missing, so a broken call fails where
+ * it is made rather than as a 404 from the server.
+ *
+ * @param {string} path e.g. '/supplier/orders/:id'
+ * @param {Record<string, string | number>} [params]
+ */
+export function buildUrl(path, params = {}) {
+  return String(path).replace(/:([A-Za-z_]\w*)/g, (_, key) => {
+    const value = params[key];
+    if (value === undefined || value === null || value === '') {
+      throw new Error(`buildUrl: missing path parameter "${key}" for ${path}`);
+    }
+    return encodeURIComponent(String(value));
+  });
+}
+
+/**
+ * Every path this app calls, matching tax-my-motor-backend's
+ * controllers. Built with `buildUrl`, e.g.
+ *
+ *   api.post(buildUrl(API_URL.SUPPLIER_ORDER_BANK_APPROVE, {id: order.id}));
+ */
+export const API_URL = Object.freeze({
+  // auth
+  LOGIN: '/auth/login',
+  REFRESH: '/auth/refresh',
+  LOGOUT: '/auth/logout',
+  ME: '/auth/me',
+
+  // orders — supplier's own book (supplier-orders.controller.ts)
+  SUPPLIER_ORDERS: '/supplier/orders',
+  SUPPLIER_ORDER_DETAIL: '/supplier/orders/:id',
+  SUPPLIER_ORDER_STATS: '/supplier/orders/stats',
+  SUPPLIER_ORDER_BANK_APPROVE: '/supplier/orders/:id/bank/approve',
+  SUPPLIER_ORDER_BANK_REQUEST_CHANGES:
+    '/supplier/orders/:id/bank/request-changes',
+
+  // orders — the admin's monitoring board (admin-orders.controller.ts)
+  ADMIN_ORDERS: '/admin/orders',
+  ADMIN_ORDER_STATS: '/admin/orders/stats',
+  ADMIN_ORDER_SEND: '/admin/orders/:id/send',
+
+  // invoices
+  INVOICE_UPLOAD: '/invoices/:orderId',
+  INVOICE_FILE: '/invoices/:orderId/file',
+});
 
 export default apiUrl;

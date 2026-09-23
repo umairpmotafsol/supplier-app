@@ -1,36 +1,32 @@
 /**
  * THE ONE PLACE THE API BASE URL IS CONFIGURED.
  *
- * ┌──────────────────────────────────────────────────────────────────┐
- * │  Set BASE_URL below to point the app at a backend.               │
- * └──────────────────────────────────────────────────────────────────┘
+ * Points at tax-my-motor-backend. In debug builds this defaults to each
+ * platform's loopback to a backend running on the same machine:
  *
- * It is deliberately empty. This app is a frontend-only prototype: the
- * order book, the accounts and the invoice upload are all mocked, and no
- * screen calls the network. Inventing a URL here would mean shipping an
- * app that tries to reach a host that does not exist, fails, and shows
- * errors for work it already did locally.
+ *  - Android emulator: 10.0.2.2 is the host machine, by Android's own
+ *    convention.
+ *  - iOS simulator: localhost works directly, same machine.
+ *  - A physical device (either platform) can't reach either of those —
+ *    replace the debug value with your machine's LAN IP (e.g.
+ *    'http://192.168.1.23:4000/api') and make sure the backend's
+ *    CORS_ORIGINS / firewall allow it.
  *
- * With BASE_URL empty:
- *  - every screen works exactly as it does now, offline;
- *  - `apiUrl()` and the axios instance throw a clear, named error
- *    (`API_NOT_CONFIGURED`) rather than firing a request at "undefined".
- *
- * When there is a backend, set BASE_URL (or read it from your build
- * flavour / scheme here — this is the only file that has to change) and
- * the axios instance, the interceptor and `useUploadMedia` start
- * working with no other edits.
+ * Production must be a real HTTPS host — the iOS and Android projects
+ * only allow cleartext traffic to the local Metro bundler in debug
+ * builds.
  */
 import { Platform } from 'react-native';
 
 /**
- * The API root, e.g. 'https://api.example.com/v1'. Empty = not
- * configured; see above.
- *
- * Note for local development: an Android emulator reaches the host
- * machine on 10.0.2.2, not localhost — hence the helper below.
+ * The API root, e.g. 'https://api.example.com/api'. Empty would mean
+ * "not configured"; see `isApiConfigured` below.
  */
-export const BASE_URL = '';
+export const BASE_URL = __DEV__
+  ? Platform.OS === 'android'
+    ? 'http://10.0.2.2:4000/api'
+    : 'http://localhost:4000/api'
+  : 'https://api.your-domain.example';
 
 /** True when a backend has been configured. */
 export const isApiConfigured = () => BASE_URL.trim().length > 0;

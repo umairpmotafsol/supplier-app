@@ -29,6 +29,7 @@ export default function CaptureInvoiceScreen() {
   const { orders, uploadInvoice } = useSupplier();
   const [photo, setPhoto] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const order = orders.find(o => o.id === route.params.orderId);
 
@@ -52,14 +53,20 @@ export default function CaptureInvoiceScreen() {
     }
   };
 
-  const onSubmit = () => {
-    if (!photo) {
+  const onSubmit = async () => {
+    if (!photo || submitting) {
       return;
     }
-    uploadInvoice(order.id, photo);
-    toast({ message: 'Invoice uploaded — order complete', icon: 'check' });
-    // Straight back to the list; the order is finished from here.
-    navigation.navigate(ROUTES.MAIN);
+    setSubmitting(true);
+    try {
+      await uploadInvoice(order.id, photo);
+      toast({ message: 'Invoice uploaded — order complete', icon: 'check' });
+      // Straight back to the list; the order is finished from here.
+      navigation.navigate(ROUTES.MAIN);
+    } catch {
+      // The axios layer has already toasted why; stay put and let them retry.
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -109,9 +116,15 @@ export default function CaptureInvoiceScreen() {
       <Dock standalone>
         {photo ? (
           <>
-            <Cta label="Submit Invoice" icon="check" onPress={onSubmit} />
+            <Cta
+              label={submitting ? 'Uploading…' : 'Submit Invoice'}
+              icon="check"
+              disabled={submitting}
+              onPress={onSubmit}
+            />
             <Pressable
               accessibilityRole="button"
+              disabled={submitting}
               onPress={() => setPhoto(null)}
               style={styles.retake}
             >

@@ -1,7 +1,7 @@
 /* eslint-env jest */
 /**
- * The seams around the mock app: the API layer must fail loudly and
- * locally while no backend is configured, permissions must ask for the
+ * The seams around the app: the API layer must fail loudly and locally
+ * if a backend is ever left unconfigured, permissions must ask for the
  * right thing on each Android version, and a cancelled picker must not
  * be reported as a failure.
  */
@@ -9,16 +9,8 @@ import { Platform } from 'react-native';
 import ImagePicker from 'react-native-image-crop-picker';
 import { RESULTS, check, request } from 'react-native-permissions';
 
-import { AxiosInterceptorFunction } from '../src/resources/axios/AxiosInterceptorFunction';
-import {
-  API_NOT_CONFIGURED,
-  isApiConfigured,
-} from '../src/resources/utils/apiConfig';
-import {
-  ApiNotConfiguredError,
-  apiUrl,
-  toQueryString,
-} from '../src/resources/utils/apiUrl';
+import { isApiConfigured } from '../src/resources/utils/apiConfig';
+import { toQueryString } from '../src/resources/utils/apiUrl';
 import {
   describeRequestError,
   mimeTypeFor,
@@ -34,28 +26,64 @@ import { pickMedia } from '../src/components/organisms/MediaPicker';
 import { showToast } from '../src/components/molecules/Toast';
 import { gbp, formatTimeAgo, isToday } from '../src/data/mock';
 
-describe('the API layer with no backend configured', () => {
-  it('ships unconfigured', () => {
-    expect(isApiConfigured()).toBe(false);
-  });
-
-  it('refuses to build a URL, naming the file to edit', () => {
-    expect(() => apiUrl('orders')).toThrow(ApiNotConfiguredError);
-    expect(() => apiUrl('orders')).toThrow('apiConfig.js');
-  });
-
-  it('rejects a request before it reaches the network', async () => {
-    await expect(
-      AxiosInterceptorFunction({ url: 'orders' }),
-    ).rejects.toMatchObject({
-      code: API_NOT_CONFIGURED,
-    });
+describe('the API layer', () => {
+  it('ships configured, pointed at a local backend for development', () => {
+    expect(isApiConfigured()).toBe(true);
   });
 
   it('serialises queries without sending empty values', () => {
     expect(toQueryString({ a: 1, b: null, c: ['x', 'y'], d: '' })).toBe(
       '?a=1&c=x&c=y',
     );
+  });
+
+  /*
+   * apiConfig.js now defaults to a real dev host (see its own comment),
+   * so the guard that matters before one is set — a fresh production
+   * build, say — is exercised against an isolated copy of the modules
+   * with apiConfig mocked back to unconfigured, rather than against the
+   * ones every other test in this file uses.
+   */
+  describe('before a backend is configured', () => {
+    const unconfigured = () => ({
+      BASE_URL: '',
+      API_NOT_CONFIGURED: 'API_NOT_CONFIGURED',
+      REQUEST_TIMEOUT_MS: 30000,
+      UPLOAD_TIMEOUT_MS: 120000,
+      DEFAULT_HEADERS: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      isApiConfigured: () => false,
+      resolveBaseUrl: url => url,
+    });
+
+    it('refuses to build a URL, naming the file to edit', () => {
+      jest.isolateModules(() => {
+        jest.doMock('../src/resources/utils/apiConfig', unconfigured);
+        const fresh = require('../src/resources/utils/apiUrl');
+        expect(() => fresh.apiUrl('orders')).toThrow(
+          fresh.ApiNotConfiguredError,
+        );
+        expect(() => fresh.apiUrl('orders')).toThrow('apiConfig.js');
+      });
+      jest.dontMock('../src/resources/utils/apiConfig');
+    });
+
+    it('rejects a request before it reaches the network', async () => {
+      let freshFn;
+      jest.isolateModules(() => {
+        jest.doMock('../src/resources/utils/apiConfig', unconfigured);
+        freshFn =
+          require('../src/resources/axios/AxiosInterceptorFunction')
+            .AxiosInterceptorFunction;
+      });
+      jest.dontMock('../src/resources/utils/apiConfig');
+
+      await expect(freshFn({ url: 'orders' })).rejects.toMatchObject({
+        code: 'API_NOT_CONFIGURED',
+      });
+    });
   });
 });
 

@@ -6,33 +6,43 @@
  * where you come to look something up, and home is meant to be a glance.
  */
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 import CustomHeader from '../components/molecules/CustomHeader';
 import { Body, Screen } from '../components/Screen';
 import { AdminOrderRow } from '../components/AdminOrderRow';
+import { ChipTabs } from '../components/ChipTabs';
+import { InvoiceViewer } from '../components/InvoiceViewer';
 import { Eyebrow, Hint } from '../components/ui';
-import { colors, font, radius, s } from '../theme/tokens';
-import { awaitingWhatsappSend } from '../data/mock';
+import { s } from '../theme/tokens';
+import { awaitingWhatsappSend, isWhatsappOrder } from '../data/mock';
 import { useSupplier } from '../store/useSupplier';
 
+/*
+ * "WhatsApp" is every order on that channel; "To send" is the subset
+ * still waiting on an admin. Both are worth a filter — one answers
+ * "what is on WhatsApp", the other "what do I have to do".
+ */
 const FILTERS = [
   { key: 'all', label: 'All', match: () => true },
+  { key: 'whatsapp', label: 'WhatsApp', match: isWhatsappOrder },
+  { key: 'tosend', label: 'To send', match: awaitingWhatsappSend },
   { key: 'overdue', label: 'Overdue', match: o => o.status === 'overdue' },
   {
     key: 'awaiting',
     label: 'Awaiting invoice',
     match: o => o.status === 'awaiting_invoice',
   },
-  { key: 'whatsapp', label: 'To send', match: awaitingWhatsappSend },
   { key: 'done', label: 'Completed', match: o => o.status === 'completed' },
 ];
 
 export default function AdminHistoryScreen() {
   const navigation = useNavigation();
-  const { orders, now } = useSupplier();
+  const { orders, now, sendInvoice } = useSupplier();
   const [filter, setFilter] = useState('all');
+  const [viewingId, setViewingId] = useState(null);
+  const [sendingId, setSendingId] = useState(null);
 
   const visible = useMemo(() => {
     const active = FILTERS.find(f => f.key === filter) ?? FILTERS[0];
@@ -41,72 +51,74 @@ export default function AdminHistoryScreen() {
       .sort((a, b) => +new Date(b.assignedAt) - +new Date(a.assignedAt));
   }, [orders, filter]);
 
+  const counts = useMemo(
+    () =>
+      Object.fromEntries(
+        FILTERS.map(f => [f.key, orders.filter(f.match).length]),
+      ),
+    [orders],
+  );
+
+  const viewing = viewingId
+    ? orders.find(o => o.id === viewingId) ?? null
+    : null;
+
+  const send = async id => {
+    setSendingId(id);
+    const sent = await sendInvoice(id);
+    setSendingId(null);
+    if (sent) {
+      setViewingId(current => (current === id ? null : current));
+    }
+  };
+
   return (
     <Screen>
       <CustomHeader onBack={() => navigation.goBack()} title="History" />
       <Body>
         <Eyebrow>All orders</Eyebrow>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filters}
-        >
-          {FILTERS.map(f => {
-            const on = f.key === filter;
-            return (
-              <Pressable
-                key={f.key}
-                accessibilityRole="button"
-                accessibilityState={{ selected: on }}
-                onPress={() => setFilter(f.key)}
-                style={[styles.chip, on && styles.chipOn]}
-              >
-                <Text style={[styles.chipText, on && styles.chipTextOn]}>
-                  {f.label}
-                </Text>
-                <Text style={[styles.chipCount, on && styles.chipTextOn]}>
-                  {orders.filter(f.match).length}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        <ChipTabs
+          tabs={FILTERS}
+          value={filter}
+          onChange={setFilter}
+          counts={counts}
+        />
 
         {visible.length === 0 ? (
           <Hint center>Nothing in this view.</Hint>
         ) : (
           visible.map(order => (
-            <AdminOrderRow key={order.id} order={order} now={now} />
+            <AdminOrderRow
+              key={order.id}
+              order={order}
+              now={now}
+              onView={() => setViewingId(order.id)}
+              onSend={
+                awaitingWhatsappSend(order) ? () => send(order.id) : undefined
+              }
+              sending={sendingId === order.id}
+            />
           ))
         )}
 
         <View style={styles.tail} />
       </Body>
+
+      <InvoiceViewer
+        order={viewing}
+        onClose={() => setViewingId(null)}
+        onSend={
+          viewing && awaitingWhatsappSend(viewing)
+            ? () => send(viewing.id)
+            : undefined
+        }
+        sending={!!viewing && sendingId === viewing.id}
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  filters: { gap: s(7), paddingBottom: s(14), paddingRight: s(4) },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: s(6),
-    paddingHorizontal: s(11),
-    paddingVertical: s(7),
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
-  },
-  chipOn: { borderColor: colors.orange, backgroundColor: colors.orangeSoft },
-  chipText: {
-    fontFamily: font.semibold,
-    fontSize: s(10.5),
-    color: colors.ink2,
-  },
-  chipTextOn: { color: colors.orange },
-  chipCount: { fontFamily: font.bold, fontSize: s(10), color: colors.ink4 },
   tail: { height: s(10) },
 });

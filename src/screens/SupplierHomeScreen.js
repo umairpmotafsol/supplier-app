@@ -13,17 +13,16 @@ import { useNavigation } from '@react-navigation/native';
 import CustomHeader, { IconButton } from '../components/molecules/CustomHeader';
 import { Body, Screen } from '../components/Screen';
 import { OrderCard } from '../components/OrderCard';
-import { Cta, Eyebrow, Hint } from '../components/ui';
+import { Eyebrow } from '../components/ui';
 import Icon from '../components/atoms/Icon';
 import { colors, font, radius, s } from '../theme/tokens';
-import { needsInvoice, supplierName } from '../data/mock';
+import { needsInvoice } from '../data/mock';
 import { useSupplier } from '../store/useSupplier';
 import { ROUTES } from '../navigation/routes';
 
 export default function SupplierHomeScreen() {
   const navigation = useNavigation();
-  const { session, visibleOrders, now, signOut, simulateNewOrder } =
-    useSupplier();
+  const { session, visibleOrders, now, signOut } = useSupplier();
 
   const { live, done } = useMemo(() => {
     const open = visibleOrders.filter(needsInvoice);
@@ -61,11 +60,7 @@ export default function SupplierHomeScreen() {
 
       <Body>
         <View style={styles.who}>
-          <Text style={styles.name}>
-            {session?.supplierId
-              ? supplierName(session.supplierId)
-              : 'Supplier'}
-          </Text>
+          <Text style={styles.name}>{session?.name ?? 'Supplier'}</Text>
           <Text style={styles.sub}>
             {live.length === 0
               ? 'Nothing waiting on you.'
@@ -108,17 +103,6 @@ export default function SupplierHomeScreen() {
             ))}
           </>
         ) : null}
-
-        <Hint icon="info" style={{ marginTop: s(6), marginBottom: s(12) }}>
-          "Simulate new order" stands in for the backend routing a new customer
-          order to an eligible supplier — there's no live link between apps in
-          this frontend-only prototype.
-        </Hint>
-        <Cta
-          variant="ghost"
-          label="Simulate new order"
-          onPress={() => simulateNewOrder()}
-        />
       </Body>
     </Screen>
   );

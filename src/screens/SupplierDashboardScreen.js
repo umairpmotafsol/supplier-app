@@ -16,7 +16,7 @@ import CustomHeader, { IconButton } from '../components/molecules/CustomHeader';
 import { Body, Screen } from '../components/Screen';
 import { Eyebrow, Hint, StatTile } from '../components/ui';
 import { colors, font, s } from '../theme/tokens';
-import { isToday, needsInvoice, supplierName } from '../data/mock';
+import { isToday, needsInvoice } from '../data/mock';
 import { useSupplier } from '../store/useSupplier';
 
 export default function SupplierDashboardScreen() {
@@ -51,11 +51,7 @@ export default function SupplierDashboardScreen() {
 
       <Body>
         <View style={styles.who}>
-          <Text style={styles.name}>
-            {session?.supplierId
-              ? supplierName(session.supplierId)
-              : 'Supplier'}
-          </Text>
+          <Text style={styles.name}>{session?.name ?? 'Supplier'}</Text>
           <Text style={styles.sub}>Your orders at a glance.</Text>
         </View>
 

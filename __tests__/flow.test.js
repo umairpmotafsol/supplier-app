@@ -1,107 +1,134 @@
 /* eslint-env jest */
 /**
- * The rules the updated flow spec turns on: routing by order type,
- * the two login roles, and a 7-minute timer that runs until the invoice
- * is uploaded rather than until an order is accepted.
+ * The rules the updated flow still turns on: there is no accept step,
+ * a 7-minute window that runs until the invoice is uploaded, and the
+ * two-role sign-in. Routing and status derivation are now the server's
+ * job (see orders.serializer.ts), so what is exercised here is the
+ * arithmetic the countdown does with the `dueAt` the server hands back,
+ * and what the store does with whatever a mocked response says.
  */
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
+import { useDispatch } from 'react-redux';
 
-import {
-  INITIAL_ORDERS,
-  RESPONSE_TIMEOUT_MS,
-  authenticate,
-  awaitingWhatsappSend,
-  bankAwaitingReview,
-  bankWithCustomer,
-  canUploadInvoice,
-  clockStartedAt,
-  isToday,
-  routeOrder,
-} from '../src/data/mock';
+jest.mock('../src/resources/axios/AxiosInterceptorFunction', () => ({
+  api: {
+    get: jest.fn(),
+    post: jest.fn(),
+    put: jest.fn(),
+    patch: jest.fn(),
+    delete: jest.fn(),
+  },
+  setApiEventHandlers: jest.fn(),
+}));
+
+import { api } from '../src/resources/axios/AxiosInterceptorFunction';
+import { awaitingWhatsappSend, isToday } from '../src/data/mock';
 import { invoiceMessage, shareInvoice } from '../src/lib/share';
 import { overdueMinutes, remainingMs } from '../src/components/Countdown';
 import { useSupplier } from '../src/store/useSupplier';
+import { fetchOrders } from '../src/store/orders/ordersSlice';
 import AppNavigation from '../src/navigation/appNavigation';
 import {
   SupplierTestProvider,
   setupStore,
 } from '../test-utils/SupplierTestProvider';
 
-describe('supplier routing', () => {
-  const suppliers = [
-    {
-      id: 'a',
-      name: 'A',
-      company: '',
-      active: true,
-      orderTypes: ['tax6', 'dd'],
-    },
-    { id: 'b', name: 'B', company: '', active: true, orderTypes: ['tax12'] },
-    {
-      id: 'c',
-      name: 'C',
-      company: '',
-      active: false,
-      orderTypes: ['tax6', 'tax12', 'dd'],
-    },
-  ];
+const page = items => ({ items, total: items.length, page: 1, limit: 100, pages: 1 });
 
-  it('sends each order type to the supplier configured for it', () => {
-    expect(routeOrder('tax6', suppliers)?.id).toBe('a');
-    expect(routeOrder('dd', suppliers)?.id).toBe('a');
-    expect(routeOrder('tax12', suppliers)?.id).toBe('b');
-  });
-
-  it('never routes to an inactive supplier, even an eligible one', () => {
-    const onlyInactive = suppliers.filter(sup => !sup.active);
-    expect(routeOrder('tax12', onlyInactive)).toBeNull();
-  });
-
-  it('leaves an order unrouted when no active supplier handles the type', () => {
-    const noDirectDebit = suppliers.map(sup => ({
-      ...sup,
-      orderTypes: sup.orderTypes.filter(t => t !== 'dd'),
-    }));
-    expect(routeOrder('dd', noDirectDebit)).toBeNull();
-  });
+const supplierUser = (overrides = {}) => ({
+  id: 'user-1',
+  name: 'Ian Brooks',
+  email: 'supplier.a@partners.co.uk',
+  phone: '',
+  role: 'supplier',
+  supplierId: 'supplier-1',
+  address: '',
+  city: '',
+  postcode: '',
+  referralCode: null,
+  freeOrders: 0,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  ...overrides,
 });
 
-describe('sign-in', () => {
-  it('resolves the role from the account, not from the caller', () => {
-    expect(authenticate('admin@partners.co.uk', 'admin123')?.role).toBe(
-      'admin',
-    );
-    expect(authenticate('supplier.a@partners.co.uk', 'supplier123')?.role).toBe(
-      'supplier',
-    );
-  });
+const adminUser = (overrides = {}) => ({
+  id: 'user-9',
+  name: 'Alex Morgan',
+  email: 'admin@taxmymotor.co.uk',
+  phone: '',
+  role: 'admin',
+  supplierId: null,
+  address: '',
+  city: '',
+  postcode: '',
+  referralCode: null,
+  freeOrders: 0,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  ...overrides,
+});
 
-  it('rejects a wrong password', () => {
-    expect(authenticate('admin@partners.co.uk', 'nope')).toBeNull();
-  });
+const authResult = user => ({
+  accessToken: 'access-token',
+  refreshToken: 'refresh-token',
+  expiresIn: '15m',
+  user,
+});
+
+/** Shaped like tax-my-motor-backend's toSupplierOrder. */
+const supplierOrder = (overrides = {}) => ({
+  id: 'order-1025',
+  orderNumber: 'ORD-1025',
+  reg: 'LM68 RTV',
+  vehicleModel: 'Kia Sportage 1.6 GDi',
+  orderType: 'tax6',
+  orderTypeLabel: '6 Months',
+  items: [{ name: 'Vehicle tax (6 months)', qty: 1 }],
+  total: 135,
+  status: 'awaiting_invoice',
+  invoiceStatus: 'pending',
+  communicationMethod: 'email',
+  whatsappRequested: false,
+  v62Requested: false,
+  placedAt: '2026-09-03T09:55:00.000Z',
+  orderDate: '2026-09-03T09:55:00.000Z',
+  assignedAt: '2026-09-03T10:00:00.000Z',
+  turnStartedAt: null,
+  dueAt: '2026-09-03T10:07:00.000Z',
+  invoiceUploadedAt: null,
+  deliveredAt: null,
+  invoicePhoto: null,
+  bank: null,
+  bankReview: null,
+  v62: null,
+  ...overrides,
+});
+
+/** Shaped like tax-my-motor-backend's toAdminOrder. */
+const adminOrder = (overrides = {}) => ({
+  ...supplierOrder(),
+  customer: { id: 'cust-1', name: 'John Smith', email: 'john@example.com', phone: '' },
+  supplier: { id: 'supplier-1', name: 'Ian Brooks', company: 'Northgate Motor Services' },
+  deliveryAddress: '24 Maple Road, London, SW11 3AA',
+  ...overrides,
 });
 
 describe('the 7-minute window', () => {
-  const assignedAt = new Date('2026-09-03T10:00:00Z').toISOString();
-  const at = ms => new Date(assignedAt).getTime() + ms;
+  const dueAt = '2026-09-03T10:07:00.000Z';
+  const deadline = new Date(dueAt).getTime();
 
-  it('counts down from assignment', () => {
-    expect(remainingMs(assignedAt, at(0))).toBe(RESPONSE_TIMEOUT_MS);
-    expect(remainingMs(assignedAt, at(60_000))).toBe(
-      RESPONSE_TIMEOUT_MS - 60_000,
-    );
+  it('counts down to the deadline', () => {
+    expect(remainingMs(dueAt, deadline - 60_000)).toBe(60_000);
+    expect(remainingMs(dueAt, deadline)).toBe(0);
   });
 
-  it('never reads above the full window when the clock is a tick behind', () => {
-    expect(remainingMs(assignedAt, at(-500))).toBe(RESPONSE_TIMEOUT_MS);
+  it('never reads negative once the deadline has passed', () => {
+    expect(remainingMs(dueAt, deadline + 5_000)).toBe(0);
   });
 
   it('keeps counting past the deadline so the admin sees how late it is', () => {
-    expect(overdueMinutes(assignedAt, at(RESPONSE_TIMEOUT_MS))).toBe(0);
-    expect(
-      overdueMinutes(assignedAt, at(RESPONSE_TIMEOUT_MS + 3 * 60_000)),
-    ).toBe(3);
+    expect(overdueMinutes(dueAt, deadline)).toBe(0);
+    expect(overdueMinutes(dueAt, deadline + 3 * 60_000)).toBe(3);
   });
 });
 
@@ -114,6 +141,7 @@ async function mount() {
   const seen = {};
   function Probe() {
     seen.store = useSupplier();
+    seen.dispatch = useDispatch();
     return null;
   }
   let tree;
@@ -128,6 +156,9 @@ async function mount() {
     get store() {
       return seen.store;
     },
+    get dispatch() {
+      return seen.dispatch;
+    },
     unmount: async () => {
       await ReactTestRenderer.act(() => {
         tree.unmount();
@@ -136,80 +167,57 @@ async function mount() {
   };
 }
 
-describe('the order lifecycle', () => {
-  it('has no accept step — an order goes straight to needing an invoice', async () => {
-    const app = await mount();
-    expect(app.store.orders.every(o => 'invoiceStatus' in o)).toBe(true);
-    // No status in the book implies acceptance.
-    expect(
-      app.store.orders.map(o => o.status).filter(st => st === 'accepted'),
-    ).toHaveLength(0);
-    await app.unmount();
-  });
-
-  /*
-   * Uploading always stops the clock. Whether that *completes* the order
-   * depends on the delivery channel, which the WhatsApp tests below
-   * cover — so this one asserts only the timer.
-   */
-  it('stops the timer by uploading the invoice', async () => {
-    const app = await mount();
-    const target = app.store.orders.find(canUploadInvoice);
-    expect(target).toBeDefined();
-
-    await ReactTestRenderer.act(() => {
-      app.store.uploadInvoice(target.id, {
-        uri: 'mock://shot.jpg',
-        capturedAt: new Date().toISOString(),
-      });
-    });
-
-    const after = app.store.orders.find(o => o.id === target.id);
-    expect(after.invoiceStatus).toBe('uploaded');
-    expect(after.invoiceUploadedAt).toBeTruthy();
-    expect(after.status).not.toBe('awaiting_invoice');
-    expect(after.status).not.toBe('overdue');
-    await app.unmount();
-  });
-
-  it('scopes a supplier to its own orders and shows an admin everything', async () => {
-    const app = await mount();
-
-    await ReactTestRenderer.act(() => {
-      app.store.signIn('supplier.a@partners.co.uk', 'supplier123');
-    });
-    const supplierView = app.store.visibleOrders;
-    expect(supplierView.length).toBeGreaterThan(0);
-    expect(supplierView.every(o => o.supplierId === 'supplier-1')).toBe(true);
-    expect(supplierView.length).toBeLessThan(app.store.orders.length);
-
-    await ReactTestRenderer.act(() => {
-      app.store.signIn('admin@partners.co.uk', 'admin123');
-    });
-    expect(app.store.isAdmin).toBe(true);
-    expect(app.store.visibleOrders).toHaveLength(app.store.orders.length);
-    await app.unmount();
-  });
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
-describe('the WhatsApp hand-off', () => {
-  const photo = () => ({
-    uri: 'mock://shot.jpg',
-    capturedAt: new Date().toISOString(),
+describe('uploading the invoice', () => {
+  it('has no accept step — signing in goes straight to a book of orders needing invoices', async () => {
+    const app = await mount();
+    api.post.mockResolvedValueOnce(authResult(supplierUser()));
+    await ReactTestRenderer.act(() => app.store.signIn(
+      'supplier.a@partners.co.uk',
+      'supplier123',
+    ));
+
+    api.get.mockResolvedValueOnce(page([supplierOrder()]));
+    await ReactTestRenderer.act(() => app.dispatch(fetchOrders()));
+
+    expect(app.store.orders.every(o => 'invoiceStatus' in o)).toBe(true);
+    expect(app.store.orders.map(o => o.status)).not.toContain('accepted');
+    await app.unmount();
   });
 
-  it('finishes an email order at the upload', async () => {
+  it('finishes an email order at the upload — the server says so, this just stores it', async () => {
     const app = await mount();
-    const target = app.store.orders.find(
-      o => canUploadInvoice(o) && o.communicationMethod === 'email',
-    );
-    expect(target).toBeDefined();
+    api.post.mockResolvedValueOnce(authResult(supplierUser()));
+    await ReactTestRenderer.act(() => app.store.signIn(
+      'supplier.a@partners.co.uk',
+      'supplier123',
+    ));
+    api.get.mockResolvedValueOnce(page([supplierOrder()]));
+    await ReactTestRenderer.act(() => app.dispatch(fetchOrders()));
 
-    await ReactTestRenderer.act(() => {
-      app.store.uploadInvoice(target.id, photo());
+    const completed = supplierOrder({
+      status: 'completed',
+      invoiceStatus: 'uploaded',
+      invoiceUploadedAt: '2026-09-03T10:02:00.000Z',
+      invoicePhoto: { uri: '/api/invoices/order-1025/file', capturedAt: '2026-09-03T10:02:00.000Z' },
     });
+    api.post.mockResolvedValueOnce(completed);
 
-    const after = app.store.orders.find(o => o.id === target.id);
+    await ReactTestRenderer.act(() =>
+      app.store.uploadInvoice('order-1025', {
+        uri: 'mock://invoice-ORD-1025.jpg',
+        capturedAt: '2026-09-03T10:02:00.000Z',
+      }),
+    );
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/invoices/order-1025',
+      expect.any(FormData),
+    );
+    const after = app.store.orders.find(o => o.id === 'order-1025');
     expect(after.status).toBe('completed');
     expect(awaitingWhatsappSend(after)).toBe(false);
     await app.unmount();
@@ -217,101 +225,62 @@ describe('the WhatsApp hand-off', () => {
 
   it('parks a WhatsApp order with the admin instead of completing it', async () => {
     const app = await mount();
-    const target = app.store.orders.find(
-      o => canUploadInvoice(o) && o.communicationMethod === 'whatsapp',
-    );
-    expect(target).toBeDefined();
+    api.post.mockResolvedValueOnce(authResult(supplierUser()));
+    await ReactTestRenderer.act(() => app.store.signIn(
+      'supplier.a@partners.co.uk',
+      'supplier123',
+    ));
+    const target = supplierOrder({ communicationMethod: 'whatsapp', whatsappRequested: true });
+    api.get.mockResolvedValueOnce(page([target]));
+    await ReactTestRenderer.act(() => app.dispatch(fetchOrders()));
 
-    await ReactTestRenderer.act(() => {
-      app.store.uploadInvoice(target.id, photo());
-    });
+    const parked = { ...target, status: 'awaiting_whatsapp', invoiceStatus: 'uploaded' };
+    api.post.mockResolvedValueOnce(parked);
+
+    await ReactTestRenderer.act(() =>
+      app.store.uploadInvoice(target.id, {
+        uri: 'mock://shot.jpg',
+        capturedAt: '2026-09-03T10:02:00.000Z',
+      }),
+    );
 
     const after = app.store.orders.find(o => o.id === target.id);
     expect(after.status).toBe('awaiting_whatsapp');
-    expect(after.invoiceStatus).toBe('uploaded'); // the timer still stopped
     expect(awaitingWhatsappSend(after)).toBe(true);
     expect(app.store.whatsappQueue.map(o => o.id)).toContain(target.id);
-    await app.unmount();
-  });
-
-  it('raises the ready-to-send alert for an admin, and not for a supplier', async () => {
-    const app = await mount();
-    await ReactTestRenderer.act(() => {
-      app.store.signIn('supplier.a@partners.co.uk', 'supplier123');
-    });
-    const target = app.store.visibleOrders.find(
-      o => canUploadInvoice(o) && o.communicationMethod === 'whatsapp',
-    );
-    // Supplier A's book may not hold one; fall back to the whole book.
-    const id = (
-      target ??
-      app.store.orders.find(
-        o => canUploadInvoice(o) && o.communicationMethod === 'whatsapp',
-      )
-    ).id;
-
-    await ReactTestRenderer.act(() => {
-      app.store.uploadInvoice(id, photo());
-    });
-    expect(app.store.readyToSend).toBeNull(); // suppliers are not interrupted
-
-    await ReactTestRenderer.act(() => {
-      app.store.signIn('admin@partners.co.uk', 'admin123');
-    });
-    expect(app.store.readyToSend?.id).toBe(id);
-    await app.unmount();
-  });
-
-  it('only counts as delivered once, and clears the alert', async () => {
-    const app = await mount();
-    await ReactTestRenderer.act(() => {
-      app.store.signIn('admin@partners.co.uk', 'admin123');
-    });
-    const target = app.store.whatsappQueue[0];
-    expect(target).toBeDefined();
-
-    await ReactTestRenderer.act(() => {
-      app.store.markDelivered(target.id);
-    });
-
-    const after = app.store.orders.find(o => o.id === target.id);
-    expect(after.status).toBe('completed');
-    expect(after.deliveredAt).toBeTruthy();
-    expect(awaitingWhatsappSend(after)).toBe(false);
-    expect(app.store.whatsappQueue.map(o => o.id)).not.toContain(target.id);
     await app.unmount();
   });
 });
 
 describe('the share sheet', () => {
+  const whatsappOrder = supplierOrder({
+    id: 'order-1019',
+    orderNumber: 'ORD-1019',
+    communicationMethod: 'whatsapp',
+    total: 220,
+  });
+
   it('marks delivered only when the admin actually shares', async () => {
     const { Share } = require('react-native');
-    const order = INITIAL_ORDERS.find(
-      o => o.communicationMethod === 'whatsapp',
-    );
-
     const spy = jest.spyOn(Share, 'share');
 
     spy.mockResolvedValueOnce({ action: Share.sharedAction });
-    await expect(shareInvoice(order)).resolves.toBe(true);
+    await expect(shareInvoice(whatsappOrder)).resolves.toBe(true);
 
     // Dismissing the sheet must not count as a send.
     spy.mockResolvedValueOnce({ action: Share.dismissedAction });
-    await expect(shareInvoice(order)).resolves.toBe(false);
+    await expect(shareInvoice(whatsappOrder)).resolves.toBe(false);
 
     spy.mockRejectedValueOnce(new Error('sheet failed'));
-    await expect(shareInvoice(order)).resolves.toBe(false);
+    await expect(shareInvoice(whatsappOrder)).resolves.toBe(false);
 
     spy.mockRestore();
   });
 
   it('builds a message naming the order, vehicle and total', () => {
-    const order = INITIAL_ORDERS.find(
-      o => o.communicationMethod === 'whatsapp',
-    );
-    const msg = invoiceMessage(order);
-    expect(msg).toContain(order.orderNumber);
-    expect(msg).toContain(order.reg);
+    const msg = invoiceMessage(whatsappOrder);
+    expect(msg).toContain(whatsappOrder.orderNumber);
+    expect(msg).toContain(whatsappOrder.reg);
     expect(msg).toContain('£');
   });
 });
@@ -328,23 +297,6 @@ describe("the admin's board", () => {
     expect(isToday(tomorrow, noon)).toBe(false);
   });
 
-  it("today's board is a strict subset of the full history", async () => {
-    const app = await mount();
-    await ReactTestRenderer.act(() => {
-      app.store.signIn('admin@partners.co.uk', 'admin123');
-    });
-
-    const all = app.store.orders;
-    const today = all.filter(o => isToday(o.assignedAt, Date.now()));
-
-    // The seed book deliberately spans several days, so this proves the
-    // main screen is actually filtering rather than showing everything.
-    expect(today.length).toBeGreaterThan(0);
-    expect(today.length).toBeLessThan(all.length);
-    expect(today.every(o => all.includes(o))).toBe(true);
-    await app.unmount();
-  });
-
   it('sends from the queue without an order screen, and clears it', async () => {
     const { Share } = require('react-native');
     const spy = jest
@@ -352,23 +304,35 @@ describe("the admin's board", () => {
       .mockResolvedValue({ action: Share.sharedAction });
 
     const app = await mount();
-    await ReactTestRenderer.act(() => {
-      app.store.signIn('admin@partners.co.uk', 'admin123');
+    api.post.mockResolvedValueOnce(authResult(adminUser()));
+    await ReactTestRenderer.act(() => app.store.signIn(
+      'admin@taxmymotor.co.uk',
+      'admin123',
+    ));
+
+    const ready = adminOrder({
+      id: 'order-2001',
+      communicationMethod: 'whatsapp',
+      status: 'awaiting_whatsapp',
+      invoiceStatus: 'uploaded',
     });
-    const target = app.store.whatsappQueue[0];
-    expect(target).toBeDefined();
+    api.get.mockResolvedValueOnce(page([ready]));
+    await ReactTestRenderer.act(() => app.dispatch(fetchOrders()));
+    expect(app.store.whatsappQueue.map(o => o.id)).toContain('order-2001');
+
+    const sentOrder = { ...ready, status: 'completed', deliveredAt: '2026-09-03T10:10:00.000Z' };
+    api.post.mockResolvedValueOnce(sentOrder);
 
     let sent;
     await ReactTestRenderer.act(async () => {
-      sent = await app.store.sendInvoice(target.id);
+      sent = await app.store.sendInvoice('order-2001');
     });
 
     expect(sent).toBe(true);
     expect(spy).toHaveBeenCalled();
-    expect(app.store.whatsappQueue.map(o => o.id)).not.toContain(target.id);
-    expect(
-      app.store.orders.find(o => o.id === target.id).deliveredAt,
-    ).toBeTruthy();
+    expect(api.post).toHaveBeenCalledWith('/admin/orders/order-2001/send');
+    expect(app.store.whatsappQueue.map(o => o.id)).not.toContain('order-2001');
+    expect(app.store.orders.find(o => o.id === 'order-2001').deliveredAt).toBeTruthy();
 
     spy.mockRestore();
     await app.unmount();
@@ -381,18 +345,29 @@ describe("the admin's board", () => {
       .mockResolvedValue({ action: Share.dismissedAction });
 
     const app = await mount();
-    await ReactTestRenderer.act(() => {
-      app.store.signIn('admin@partners.co.uk', 'admin123');
+    api.post.mockResolvedValueOnce(authResult(adminUser()));
+    await ReactTestRenderer.act(() => app.store.signIn(
+      'admin@taxmymotor.co.uk',
+      'admin123',
+    ));
+
+    const ready = adminOrder({
+      id: 'order-2002',
+      communicationMethod: 'whatsapp',
+      status: 'awaiting_whatsapp',
+      invoiceStatus: 'uploaded',
     });
-    const target = app.store.whatsappQueue[0];
+    api.get.mockResolvedValueOnce(page([ready]));
+    await ReactTestRenderer.act(() => app.dispatch(fetchOrders()));
 
     let sent;
     await ReactTestRenderer.act(async () => {
-      sent = await app.store.sendInvoice(target.id);
+      sent = await app.store.sendInvoice('order-2002');
     });
 
     expect(sent).toBe(false);
-    expect(app.store.whatsappQueue.map(o => o.id)).toContain(target.id);
+    expect(api.post).not.toHaveBeenCalledWith('/admin/orders/order-2002/send');
+    expect(app.store.whatsappQueue.map(o => o.id)).toContain('order-2002');
 
     spy.mockRestore();
     await app.unmount();
@@ -400,7 +375,7 @@ describe("the admin's board", () => {
 });
 
 /*
- * The Dashboard tab. These render the real navigator rather than poking
+ * The Dashboard tab. This renders the real navigator rather than poking
  * the store, because what is being checked is the wiring: that a
  * supplier lands on tabs at all, and that the tab shows the same book
  * the Orders tab is working from.
@@ -425,6 +400,7 @@ describe('the supplier dashboard tab', () => {
     const seen = {};
     function Probe() {
       seen.store = useSupplier();
+      seen.dispatch = useDispatch();
       return null;
     }
     let tree;
@@ -436,10 +412,14 @@ describe('the supplier dashboard tab', () => {
         </SupplierTestProvider>,
       );
     });
-    await ReactTestRenderer.act(() => {
-      seen.store.signIn('supplier.a@partners.co.uk', 'supplier123');
-    });
-    return { tree: tree, store: () => seen.store };
+    api.post.mockResolvedValueOnce(authResult(supplierUser()));
+    await ReactTestRenderer.act(() => seen.store.signIn(
+      'supplier.a@partners.co.uk',
+      'supplier123',
+    ));
+    api.get.mockResolvedValueOnce(page([supplierOrder(), supplierOrder({ id: 'order-1026' })]));
+    await ReactTestRenderer.act(() => seen.dispatch(fetchOrders()));
+    return { tree, store: () => seen.store };
   }
 
   it('gives a supplier both tabs', async () => {
@@ -450,7 +430,7 @@ describe('the supplier dashboard tab', () => {
     await ReactTestRenderer.act(() => tree.unmount());
   });
 
-  it('counts the supplier own book, not the whole book', async () => {
+  it("counts the supplier's own book", async () => {
     const { tree, store } = await signedInSupplier();
     // Proves the press below is what put the dashboard on screen.
     expect(strings(tree)).not.toContain('Total orders');
@@ -467,123 +447,8 @@ describe('the supplier dashboard tab', () => {
     const text = strings(tree);
     expect(text).toContain('Total orders');
     expect(text).toContain('Pending invoice');
-
-    const mine = store().visibleOrders;
-    expect(mine.length).toBeLessThan(store().orders.length);
-    expect(text).toContain(String(mine.length));
+    expect(text).toContain(String(store().orders.length));
 
     await ReactTestRenderer.act(() => tree.unmount());
-  });
-});
-
-/*
- * The Direct Debit bank review. The rule that matters is not the
- * back-and-forth itself but what it blocks: no invoice can be raised
- * against a mandate nobody has approved.
- */
-describe('the bank details review', () => {
-  const ddOrder = store => store.orders.find(o => bankAwaitingReview(o));
-
-  it('blocks the invoice until the details are approved', async () => {
-    const app = await mount();
-    const target = ddOrder(app.store);
-    expect(target).toBeDefined();
-    expect(target.invoiceStatus).toBe('pending');
-    expect(canUploadInvoice(target)).toBe(false);
-
-    // Not merely hidden in the UI — the store refuses it.
-    await ReactTestRenderer.act(() => {
-      app.store.uploadInvoice(target.id, {
-        uri: 'mock://shot.jpg',
-        capturedAt: new Date().toISOString(),
-      });
-    });
-    expect(app.store.orders.find(o => o.id === target.id).invoiceStatus).toBe(
-      'pending',
-    );
-
-    await ReactTestRenderer.act(() => {
-      app.store.approveBankDetails(target.id);
-    });
-    const approved = app.store.orders.find(o => o.id === target.id);
-    expect(approved.bankReview.status).toBe('approved');
-    expect(canUploadInvoice(approved)).toBe(true);
-    await app.unmount();
-  });
-
-  it('sends the order back with the flagged fields and the note', async () => {
-    const app = await mount();
-    const target = ddOrder(app.store);
-
-    await ReactTestRenderer.act(() => {
-      app.store.requestBankChanges(
-        target.id,
-        ['sortCode'],
-        'Only five digits — please check it.',
-      );
-    });
-
-    const sent = app.store.orders.find(o => o.id === target.id);
-    expect(bankWithCustomer(sent)).toBe(true);
-    expect(sent.bankReview.flagged).toEqual(['sortCode']);
-    expect(sent.bankReview.notes).toHaveLength(1);
-    expect(sent.bankReview.notes[0].by).toBe('supplier');
-    // Still blocked, and now nobody at this end can move it.
-    expect(canUploadInvoice(sent)).toBe(false);
-    await app.unmount();
-  });
-
-  it('refuses a flag with no fields, which would tell the customer nothing', async () => {
-    const app = await mount();
-    const target = ddOrder(app.store);
-
-    await ReactTestRenderer.act(() => {
-      app.store.requestBankChanges(target.id, [], 'Something is wrong.');
-    });
-
-    expect(
-      bankAwaitingReview(app.store.orders.find(o => o.id === target.id)),
-    ).toBe(true);
-    await app.unmount();
-  });
-
-  it('restarts the supplier window when the customer sends it back', async () => {
-    const app = await mount();
-    const target = ddOrder(app.store);
-    const originallyAssigned = target.assignedAt;
-
-    await ReactTestRenderer.act(() => {
-      app.store.requestBankChanges(target.id, ['sortCode'], 'Five digits.');
-    });
-    await ReactTestRenderer.act(() => {
-      app.store.simulateCustomerBankUpdate(target.id);
-    });
-
-    const back = app.store.orders.find(o => o.id === target.id);
-    expect(bankAwaitingReview(back)).toBe(true);
-    expect(back.bankReview.flagged).toEqual([]);
-    // The whole exchange is kept, not just the latest turn.
-    expect(back.bankReview.notes.map(n => n.by)).toEqual([
-      'supplier',
-      'customer',
-    ]);
-    // The assignment is untouched; the response window is not.
-    expect(back.assignedAt).toBe(originallyAssigned);
-    expect(clockStartedAt(back)).not.toBe(originallyAssigned);
-    expect(new Date(clockStartedAt(back)).getTime()).toBeGreaterThan(
-      new Date(originallyAssigned).getTime(),
-    );
-    await app.unmount();
-  });
-
-  it('leaves every other order type alone', async () => {
-    const app = await mount();
-    const notDd = app.store.orders.filter(o => o.orderType !== 'dd');
-    expect(notDd.length).toBeGreaterThan(0);
-    expect(notDd.every(o => !bankAwaitingReview(o))).toBe(true);
-    expect(
-      notDd.filter(o => o.invoiceStatus === 'pending').every(canUploadInvoice),
-    ).toBe(true);
-    await app.unmount();
   });
 });

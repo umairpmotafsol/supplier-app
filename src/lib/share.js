@@ -6,7 +6,22 @@
  * from it. `Share` is a core React Native API, so unlike the camera this
  * is the real thing, not a stand-in.
  *
- * A caveat worth knowing: the share sheet does not report *which* app
+ * How the photo travels
+ * ---------------------
+ * The invoice is stored on Cloudinary, so it has a URL the customer's
+ * phone can open with no token — and that URL is what goes out. WhatsApp
+ * unfurls it into the invoice photo in the thread, and tapping it opens
+ * the full image.
+ *
+ * It is a link rather than an attachment because of what core `Share`
+ * can carry. `url` is honoured on iOS only; on Android the sheet takes
+ * `message` and nothing else, so a URL in the body is the one form that
+ * arrives on both. Attaching the bytes themselves means an
+ * `ACTION_SEND` with a content:// URI, which needs a native module
+ * (react-native-share) and a rebuild — worth doing if the link is not
+ * good enough, but it is a native dependency, not a change here.
+ *
+ * A caveat worth keeping: the share sheet does not report *which* app
  * was chosen on Android — `sharedAction` only means the sheet handed the
  * content off. On iOS `activityType` usually names it. So "sent" here
  * means "the admin completed a share", not "WhatsApp confirmed
@@ -15,7 +30,7 @@
  */
 import { Share } from 'react-native';
 
-import { ORDER_TYPE_LABEL, gbp } from '../data/mock';
+import { ORDER_TYPE_LABEL, gbp, invoiceImageUrl } from '../data/mock';
 
 /** The message body the customer receives. */
 export function invoiceMessage(order) {
@@ -24,6 +39,7 @@ export function invoiceMessage(order) {
    * so the one message it composes carries none either — in a real
    * build this copy would come from the server anyway.
    */
+  const photo = invoiceImageUrl(order);
   return [
     'Your vehicle tax is sorted.',
     '',
@@ -32,7 +48,14 @@ export function invoiceMessage(order) {
     'Cover: ' + ORDER_TYPE_LABEL[order.orderType],
     'Total paid: ' + gbp(order.total),
     '',
-    'Your invoice is attached. Keep it for your records.',
+    /*
+     * The line changes with the link, rather than promising an
+     * attachment that is not there. An invoice with no hosted copy is
+     * still worth sending as a confirmation — it just cannot carry the
+     * photo, and the message should not claim otherwise.
+     */
+    photo ? 'Your invoice: ' + photo : 'Your invoice will follow separately.',
+    'Keep it for your records.',
   ].join('\n');
 }
 
@@ -42,18 +65,13 @@ export function invoiceMessage(order) {
  * marks the order as delivered.
  */
 export async function shareInvoice(order) {
+  const photo = invoiceImageUrl(order);
   try {
     const result = await Share.share({
       title: 'Invoice ' + order.orderNumber,
       message: invoiceMessage(order),
-      /*
-       * The captured photo rides along as the attachment on iOS. In this
-       * prototype the uri is a mock:// placeholder, so only the message
-       * body travels; with a real camera this is the invoice image.
-       */
-      ...(order.invoicePhoto && !order.invoicePhoto.uri.startsWith('mock://')
-        ? { url: order.invoicePhoto.uri }
-        : null),
+      /* iOS only; Android ignores it, which is why the body carries it too. */
+      ...(photo ? { url: photo } : null),
     });
     return result.action === Share.sharedAction;
   } catch {

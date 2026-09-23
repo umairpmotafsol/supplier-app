@@ -6,12 +6,11 @@
  * get wrong.
  */
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { Body, Dock, Screen } from '../components/Screen';
-import { Banner, Cta, Eyebrow, Field, H1, Input, Sub } from '../components/ui';
-import { colors, font, radius, s, track } from '../theme/tokens';
-import { ACCOUNTS } from '../data/mock';
+import { Banner, Cta, Field, H1, Input, Sub } from '../components/ui';
+import { colors, font, s, track } from '../theme/tokens';
 import { useSupplier } from '../store/useSupplier';
 
 export default function LoginScreen() {
@@ -19,17 +18,15 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const submit = () => {
-    if (!signIn(email, password)) {
+  const submit = async () => {
+    setSubmitting(true);
+    const ok = await signIn(email, password);
+    setSubmitting(false);
+    if (!ok) {
       setError(true);
     }
-  };
-
-  const applyAccount = (accountEmail, accountPassword) => {
-    setEmail(accountEmail);
-    setPassword(accountPassword);
-    setError(false);
   };
 
   return (
@@ -53,7 +50,7 @@ export default function LoginScreen() {
               setEmail(value);
               setError(false);
             }}
-            placeholder="supplier.a@partners.co.uk"
+            placeholder="you@company.co.uk"
             autoCapitalize="none"
             keyboardType="email-address"
             leadingIcon="mail"
@@ -73,27 +70,13 @@ export default function LoginScreen() {
             invalid={error}
           />
         </Field>
-
-        <Eyebrow>Development accounts</Eyebrow>
-        <View style={styles.accounts}>
-          {ACCOUNTS.map(account => (
-            <Cta
-              key={account.email}
-              variant="ghost"
-              icon={account.role === 'admin' ? 'shield' : 'user'}
-              iconPosition="leading"
-              label={
-                account.role === 'admin'
-                  ? 'Admin — ' + account.name
-                  : account.name + ' (' + account.email.split('@')[0] + ')'
-              }
-              onPress={() => applyAccount(account.email, account.password)}
-            />
-          ))}
-        </View>
       </Body>
       <Dock standalone>
-        <Cta label="Sign in" onPress={submit} />
+        <Cta
+          label={submitting ? 'Signing in…' : 'Sign in'}
+          disabled={submitting}
+          onPress={submit}
+        />
       </Dock>
     </Screen>
   );
@@ -111,14 +94,5 @@ const styles = StyleSheet.create({
     letterSpacing: track(0.18, s(11)),
     color: colors.orange,
     marginBottom: s(20),
-  },
-  accounts: {
-    gap: s(8),
-    marginTop: s(2),
-    padding: s(11),
-    borderRadius: radius.card,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.surface,
   },
 });

@@ -1,36 +1,33 @@
 /**
- * The 7-minute invoice timer. Reads the shared `now` tick from
- * SupplierState rather than running its own, so every order card on
- * screen updates in lockstep off one interval.
+ * The invoice upload timer. Reads the shared `now` tick from commonSlice
+ * rather than running its own, so every order card on screen updates in
+ * lockstep off one interval — and reads `order.dueAt` rather than
+ * recomputing a deadline locally, because the server is what actually
+ * enforces it (a 30-second cron sweep flips a late order to overdue; see
+ * orders.tasks.ts) and is the one place that knows about a paused-then-
+ * resumed window, such as a Direct Debit order returning from the
+ * customer with its bank details corrected.
  *
- * The window starts when the order is assigned and stops only when the
- * invoice is uploaded. Past the deadline it keeps counting *up*, since
- * the order is still outstanding and the admin needs to see how far
- * behind it is.
+ * Past the deadline it keeps counting *up*, since the order is still
+ * outstanding and the admin needs to see how far behind it is.
  *
- * One order never shows a number: a Direct Debit sent back for bank
- * corrections. Counting down against the supplier while the customer
- * holds the order would be measuring the wrong person.
+ * Two orders never show a number. A Direct Debit sent back for bank
+ * corrections: counting down against the supplier while the customer
+ * holds the order would be measuring the wrong person. And an order
+ * nobody was assigned — only an admin ever sees one — where there is no
+ * window running to count, and a 00:00 in red would read as a supplier
+ * being late for something that was never given to them.
  */
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, font, s } from '../theme/tokens';
-import {
-  RESPONSE_TIMEOUT_MS,
-  bankWithCustomer,
-  clockStartedAt,
-} from '../data/mock';
+import { bankWithCustomer } from '../data/mock';
 import Icon from './atoms/Icon';
 
-export function remainingMs(assignedAt, now) {
-  const elapsed = now - new Date(assignedAt).getTime();
-  // `now` ticks once a second, so an order assigned between two ticks is
-  // briefly "in the future" and would read 07:01. Clamp at both ends.
-  return Math.min(
-    RESPONSE_TIMEOUT_MS,
-    Math.max(0, RESPONSE_TIMEOUT_MS - elapsed),
-  );
+/** Milliseconds left until `dueAt`, never negative. */
+export function remainingMs(dueAt, now) {
+  return Math.max(0, new Date(dueAt).getTime() - now);
 }
 
 export function formatCountdown(ms) {
@@ -40,10 +37,9 @@ export function formatCountdown(ms) {
   return mm + ':' + ss;
 }
 
-/** How far past the deadline an overdue order is, in whole minutes. */
-export function overdueMinutes(assignedAt, now) {
-  const dueAt = new Date(assignedAt).getTime() + RESPONSE_TIMEOUT_MS;
-  return Math.max(0, Math.round((now - dueAt) / 60000));
+/** How far past `dueAt` an overdue order is, in whole minutes. */
+export function overdueMinutes(dueAt, now) {
+  return Math.max(0, Math.round((now - new Date(dueAt).getTime()) / 60000));
 }
 
 /** How long the upload took, in whole minutes. */
@@ -53,6 +49,17 @@ export function uploadMinutes(assignedAt, uploadedAt) {
 }
 
 export function Countdown({ order, now }) {
+  if (order.status === 'unassigned') {
+    return (
+      <View style={styles.wrap}>
+        <Icon name="alert" size={s(13)} color={colors.red} strokeWidth={2.2} />
+        <Text style={[styles.text, { color: colors.red }]}>
+          No supplier holds this order type
+        </Text>
+      </View>
+    );
+  }
+
   if (bankWithCustomer(order)) {
     return (
       <View style={styles.wrap}>
@@ -76,7 +83,7 @@ export function Countdown({ order, now }) {
 
         <Text style={[styles.text, { color: colors.green }]}>
           Timer stopped
-          {order.invoiceUploadedAt
+          {order.invoiceUploadedAt && order.assignedAt
             ? ' · ' +
               uploadMinutes(order.assignedAt, order.invoiceUploadedAt) +
               'm'
@@ -91,13 +98,13 @@ export function Countdown({ order, now }) {
       <View style={styles.wrap}>
         <Icon name="alert" size={s(13)} color={colors.red} strokeWidth={2.2} />
         <Text style={[styles.text, { color: colors.red }]}>
-          {overdueMinutes(clockStartedAt(order), now)} min overdue
+          {overdueMinutes(order.dueAt, now)} min overdue
         </Text>
       </View>
     );
   }
 
-  const remaining = remainingMs(clockStartedAt(order), now);
+  const remaining = remainingMs(order.dueAt, now);
   const urgent = remaining < 60 * 1000;
   return (
     <View style={styles.wrap}>

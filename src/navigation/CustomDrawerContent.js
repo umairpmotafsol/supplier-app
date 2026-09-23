@@ -12,18 +12,13 @@ import {
 
 import CustomText from '../components/atoms/CustomText';
 import Icon, { iconSize } from '../components/atoms/Icon';
-import { supplierName } from '../data/mock';
 import { useSupplier } from '../store/useSupplier';
 import { colors, font, radius, s, track } from '../theme/tokens';
 
 export default function CustomDrawerContent(props) {
   const { session, isAdmin, signOut } = useSupplier();
 
-  const subtitle = isAdmin
-    ? 'Admin — monitoring'
-    : session?.supplierId
-    ? supplierName(session.supplierId)
-    : 'Supplier';
+  const subtitle = isAdmin ? 'Admin — monitoring' : 'Supplier';
 
   return (
     <DrawerContentScrollView {...props} contentContainerStyle={styles.scroll}>

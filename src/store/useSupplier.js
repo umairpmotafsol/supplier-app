@@ -3,8 +3,11 @@
  *
  * State lives in Redux (see the slices next door); this hook is the
  * selector/dispatch facade over it, and keeps the shape the screens were
- * written against so the migration did not have to rewrite every screen
- * to prove the store changed underneath them.
+ * written against so wiring a real backend in did not mean rewriting
+ * every screen underneath them. What changed: several actions now talk
+ * to the server, so they return a promise a caller can `await` — RTK's
+ * thunks are otherwise a drop-in replacement for the plain ones this
+ * used to dispatch.
  *
  * Use plain `useSelector` for anything new and narrow — this hook
  * re-renders on the clock tick, because most of what reads it is a
@@ -13,17 +16,14 @@
 import { useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { signIn, signOut } from './auth/authSlice';
+import { signIn as signInThunk, signOut as signOutThunk } from './auth/authSlice';
 import {
-  bankChangesRequested,
-  bankDetailsApproved,
-  invoiceDelivered,
-  invoiceUploaded,
+  approveBankDetails as approveBankDetailsThunk,
   newOrderDismissed,
   readyToSendDismissed,
-  sendInvoice,
-  simulateCustomerBankUpdate,
-  simulateNewOrder,
+  requestBankChanges as requestBankChangesThunk,
+  sendInvoice as sendInvoiceThunk,
+  uploadInvoice as uploadInvoiceThunk,
 } from './orders/ordersSlice';
 import {
   selectBankQueue,
@@ -54,9 +54,16 @@ export function useSupplier() {
     () => ({
       session,
       isAdmin,
-      /** Returns false when the credentials do not match an account. */
-      signIn: (email, password) => dispatch(signIn(email, password)),
-      signOut: () => dispatch(signOut()),
+      /** Resolves false when the credentials do not match an account. */
+      signIn: async (email, password) => {
+        try {
+          await dispatch(signInThunk({ email, password })).unwrap();
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      signOut: () => dispatch(signOutThunk()),
 
       orders,
       visibleOrders,
@@ -70,16 +77,18 @@ export function useSupplier() {
       bankQueue,
 
       requestBankChanges: (id, fields, message) =>
-        dispatch(bankChangesRequested(id, fields, message)),
-      approveBankDetails: id => dispatch(bankDetailsApproved(id)),
-      simulateCustomerBankUpdate: id =>
-        dispatch(simulateCustomerBankUpdate(id)),
+        dispatch(requestBankChangesThunk({ id, fields, message })).unwrap(),
+      approveBankDetails: id =>
+        dispatch(approveBankDetailsThunk(id)).unwrap(),
 
-      uploadInvoice: (id, photo) => dispatch(invoiceUploaded(id, photo)),
+      uploadInvoice: (id, photo) =>
+        dispatch(uploadInvoiceThunk({ id, photo })).unwrap(),
       /** Resolves false when the admin dismissed the share sheet. */
-      sendInvoice: id => dispatch(sendInvoice(id)),
-      markDelivered: id => dispatch(invoiceDelivered(id)),
-      simulateNewOrder: orderType => dispatch(simulateNewOrder(orderType)),
+      sendInvoice: id =>
+        dispatch(sendInvoiceThunk(id))
+          .unwrap()
+          .then(result => result.sent)
+          .catch(() => false),
     }),
     [
       dispatch,

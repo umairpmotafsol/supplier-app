@@ -5,24 +5,29 @@
  * and nothing else. It is not pressable, because there is no admin
  * detail screen to press through to.
  *
- * The exception is a WhatsApp order waiting to be sent, which is the one
- * thing an admin actually does. That gets a Send button in place.
+ * Two things break that rule, and both are the admin's actual job:
+ * sending a WhatsApp order on to the customer, and looking at the
+ * invoice photo first. The thumbnail is the affordance for the second —
+ * it says an invoice exists, and opens it full size.
  */
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, font, radius, s, track } from '../theme/tokens';
 import {
   bankAwaitingReview,
   bankWithCustomer,
+  invoiceImageUrl,
   statusInfo,
-  supplierName,
 } from '../data/mock';
 import { Badge, Cta } from './ui';
 import { Countdown } from './Countdown';
+import CustomImage from './atoms/CustomImage';
+import Icon from './atoms/Icon';
 
-export function AdminOrderRow({ order, now, onSend, sending }) {
+export function AdminOrderRow({ order, now, onSend, onView, sending }) {
   const info = statusInfo(order.status);
+  const photo = invoiceImageUrl(order);
   return (
     <View style={[styles.row, order.status === 'overdue' && styles.rowOverdue]}>
       <View style={styles.top}>
@@ -30,7 +35,7 @@ export function AdminOrderRow({ order, now, onSend, sending }) {
         <Badge label={info.label} tone={info.tone} />
       </View>
       <Text style={styles.supplier} numberOfLines={1}>
-        {supplierName(order.supplierId)}
+        {order.supplier?.name ?? 'Unassigned'}
       </Text>
 
       {/*
@@ -44,6 +49,24 @@ export function AdminOrderRow({ order, now, onSend, sending }) {
             ? 'Bank details awaiting check'
             : 'Bank details with the customer'}
         </Text>
+      ) : null}
+
+      {/*
+       * The invoice, when there is one to see. A thumbnail rather than
+       * a line of text: an admin checking an invoice is checking
+       * whether the photo is readable, and only the photo answers that.
+       */}
+      {onView && photo ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={'View the invoice for order ' + order.orderNumber}
+          onPress={onView}
+          style={({ pressed }) => [styles.invoice, pressed && styles.pressed]}
+        >
+          <CustomImage uri={photo} style={styles.thumb} rounded />
+          <Text style={styles.invoiceText}>View invoice</Text>
+          <Icon name="eye" size={s(14)} color={colors.ink3} />
+        </Pressable>
       ) : null}
 
       <View style={styles.foot}>
@@ -100,4 +123,23 @@ const styles = StyleSheet.create({
     marginTop: s(6),
   },
   foot: { marginTop: s(9) },
+  invoice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s(9),
+    marginTop: s(9),
+    padding: s(7),
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface2,
+  },
+  pressed: { opacity: 0.6 },
+  thumb: { width: s(34), height: s(34) },
+  invoiceText: {
+    flex: 1,
+    fontFamily: font.semibold,
+    fontSize: s(10.5),
+    color: colors.ink2,
+  },
 });

@@ -40,6 +40,7 @@ export const ICON_FAMILIES = {
 /** App icon name → [family, glyph]. */
 export const ICONS = {
   back: ['feather', 'chevron-left'],
+  close: ['feather', 'x'],
   chev: ['feather', 'chevron-right'],
   arrow: ['feather', 'arrow-right'],
   check: ['feather', 'check'],

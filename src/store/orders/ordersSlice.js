@@ -1,184 +1,162 @@
 /**
- * The order book, the 7-minute upload timer, and the invoice upload.
- *
- * This is the former SupplierState context, moved to Redux Toolkit. The
- * rules are unchanged: an order is *assigned* by the routing rules and
- * never accepted, the timer runs until the invoice is uploaded, an email
+ * The order book, from tax-my-motor-backend. The rules are unchanged
+ * from the prototype: an order is *assigned* by the routing rules and
+ * never accepted, the invoice upload is what stops the clock, an email
  * order finishes at the upload and a WhatsApp order then waits on an
  * admin, and a Direct Debit order cannot be invoiced until its mandate
- * details are approved.
+ * details are approved. The server enforces every one of those now —
+ * this slice just reflects what it says back.
  *
- * Nothing here is persisted. The seed book is written in "minutes ago"
- * and the admin's board is "today", so a book restored from a previous
- * launch would be uniformly overdue and empty of today's orders. In
- * production the orders come from the backend on every launch, which is
- * the same thing.
+ * Not persisted (see combineReducer.js): fetched on sign-in and kept
+ * warm by OrdersPoller for as long as somebody is signed in, the way a
+ * real device would have the book pushed to it.
  */
-import { createSlice } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 
-import {
-  INITIAL_ORDERS,
-  RESPONSE_TIMEOUT_MS,
-  awaitingWhatsappSend,
-  bankAwaitingReview,
-  bankWithCustomer,
-  canUploadInvoice,
-  clockStartedAt,
-  nextOrderNumber,
-  planFor,
-  randomCustomerName,
-  routeOrder,
-  sampleBankDetails,
-  statusAfterUpload,
-} from '../../data/mock';
+import { fileNameFromUri, mimeTypeFor } from '../../resources/utils/helper';
+import { api } from '../../resources/axios/AxiosInterceptorFunction';
+import { API_URL, buildUrl } from '../../resources/utils/apiUrl';
+import { awaitingWhatsappSend, toAppOrder } from '../../data/mock';
 import { shareInvoice } from '../../lib/share';
-import { clockTicked } from '../common/commonSlice';
-import { signedOut } from '../auth/authSlice';
-
-const ORDER_TYPES = ['tax6', 'tax12', 'dd'];
+import { signOut } from '../auth/authSlice';
 
 const initialState = {
   /** @type {import('../../data/mock').Order[]} */
-  items: INITIAL_ORDERS,
+  items: [],
+  status: 'idle',
+  error: null,
+  /** True once the first fetch for the current session has landed. */
+  hasLoadedOnce: false,
   /** The most recent unseen assignment, shown as the New Order popup. */
   newOrderId: null,
   /** A WhatsApp order an admin has not been shown yet. */
   readyToSendId: null,
 };
 
-const find = (state, id) => state.items.find(order => order.id === id);
+/**
+ * The signed-in supplier's own book, or — for an admin — every order.
+ * The server does the scoping (SupplierOrdersController filters to the
+ * caller's own supplier), so there is nothing to filter again here.
+ *
+ * The two endpoints do not speak the same language, though: a supplier's
+ * orders arrive already in this app's four states, an admin's arrive in
+ * the order book's own six. `toAppOrder` translates the admin feed here,
+ * at the edge, so that past this point there is one vocabulary and no
+ * screen has to ask who is signed in.
+ */
+export const fetchOrders = createAsyncThunk(
+  'orders/fetchOrders',
+  async (_, { getState, rejectWithValue }) => {
+    const isAdmin = getState().auth.session?.role === 'admin';
+    try {
+      const page = await api.get(
+        isAdmin ? API_URL.ADMIN_ORDERS : API_URL.SUPPLIER_ORDERS,
+        { params: { limit: 100 }, silent: true },
+      );
+      return isAdmin ? page.items.map(toAppOrder) : page.items;
+    } catch (error) {
+      return rejectWithValue(error?.described?.message ?? error.message);
+    }
+  },
+);
 
-const now = () => new Date().toISOString();
+/**
+ * Uploads the photographed invoice. Always stops the timer; what happens
+ * next — finished outright, or parked for an admin to send — is decided
+ * server-side from the order's own communication method, so the updated
+ * order the server hands back is the one thing this needs to store.
+ */
+export const uploadInvoice = createAsyncThunk(
+  'orders/uploadInvoice',
+  async ({ id, photo }, { rejectWithValue }) => {
+    const body = new FormData();
+    body.append('file', {
+      uri: photo.uri,
+      name: fileNameFromUri(photo.uri),
+      type: mimeTypeFor(photo.uri),
+    });
+    try {
+      return await api.post(
+        buildUrl(API_URL.INVOICE_UPLOAD, { orderId: id }),
+        body,
+      );
+    } catch (error) {
+      return rejectWithValue(error?.described?.message ?? error.message);
+    }
+  },
+);
+
+/** Signs off the mandate so the invoice can be raised. */
+export const approveBankDetails = createAsyncThunk(
+  'orders/approveBankDetails',
+  async (id, { rejectWithValue }) => {
+    try {
+      return await api.post(
+        buildUrl(API_URL.SUPPLIER_ORDER_BANK_APPROVE, { id }),
+      );
+    } catch (error) {
+      return rejectWithValue(error?.described?.message ?? error.message);
+    }
+  },
+);
+
+/** Flag what is wrong and hand the order back. The flags and the note both travel. */
+export const requestBankChanges = createAsyncThunk(
+  'orders/requestBankChanges',
+  async ({ id, fields, message }, { rejectWithValue }) => {
+    try {
+      return await api.post(
+        buildUrl(API_URL.SUPPLIER_ORDER_BANK_REQUEST_CHANGES, { id }),
+        { fields, message },
+      );
+    } catch (error) {
+      return rejectWithValue(error?.described?.message ?? error.message);
+    }
+  },
+);
+
+/**
+ * Opens the phone's share sheet for a WhatsApp order and records the
+ * send with the server only once the admin has actually shared it.
+ * Resolves false when they backed out or the sheet failed, so a
+ * dismissed sheet never marks the order as delivered.
+ */
+export const sendInvoice = createAsyncThunk(
+  'orders/sendInvoice',
+  async (id, { getState, rejectWithValue }) => {
+    const order = getState().orders.items.find(o => o.id === id);
+    if (!order || !awaitingWhatsappSend(order)) {
+      return { sent: false, order: null };
+    }
+    const shared = await shareInvoice(order);
+    if (!shared) {
+      return { sent: false, order: null };
+    }
+    try {
+      const updated = await api.post(
+        buildUrl(API_URL.ADMIN_ORDER_SEND, { id }),
+      );
+      /* An admin route, so an admin-shaped order — translated like the list. */
+      return { sent: true, order: toAppOrder(updated) };
+    } catch (error) {
+      return rejectWithValue(error?.described?.message ?? error.message);
+    }
+  },
+);
+
+const upsert = (state, order) => {
+  const index = state.items.findIndex(o => o.id === order.id);
+  if (index >= 0) {
+    state.items[index] = order;
+  } else {
+    state.items.unshift(order);
+  }
+};
 
 const ordersSlice = createSlice({
   name: 'orders',
   initialState,
   reducers: {
-    orderAdded(state, action) {
-      state.items.unshift(action.payload);
-      state.newOrderId = action.payload.id;
-    },
-
-    invoiceUploaded: {
-      reducer(state, action) {
-        const { id, photo, at } = action.payload;
-        const order = find(state, id);
-        /*
-         * Guarded here as well as in the UI. An invoice raised against a
-         * mandate nobody has approved is the thing this whole loop exists
-         * to prevent, so it should not depend on a button being hidden.
-         */
-        if (!order || !canUploadInvoice(order)) {
-          return;
-        }
-        /*
-         * Upload always stops the timer. What happens next depends on the
-         * channel: an email order is finished, a WhatsApp one passes to an
-         * admin to send from the share sheet.
-         */
-        const next = statusAfterUpload(order);
-        order.status = next;
-        order.invoiceStatus = 'uploaded';
-        order.invoicePhoto = photo;
-        order.invoiceUploadedAt = at;
-        if (next === 'awaiting_whatsapp') {
-          state.readyToSendId = id;
-        }
-      },
-      prepare: (id, photo) => ({ payload: { id, photo, at: now() } }),
-    },
-
-    /**
-     * Flag what is wrong and hand the order back. The flags and the note
-     * both travel: "wrong" on its own gives the customer nothing to act
-     * on. Every note is kept, so the third time round still reads in the
-     * context of the first two.
-     */
-    bankChangesRequested: {
-      reducer(state, action) {
-        const { id, fields, message, at } = action.payload;
-        const order = find(state, id);
-        if (!order || !bankAwaitingReview(order) || fields.length === 0) {
-          return;
-        }
-        order.bankReview.status = 'changes_requested';
-        order.bankReview.flagged = fields;
-        order.bankReview.notes.push({ at, by: 'supplier', fields, message });
-      },
-      prepare: (id, fields, message) => ({
-        payload: { id, fields, message, at: now() },
-      }),
-    },
-
-    bankDetailsApproved: {
-      reducer(state, action) {
-        const { id, at } = action.payload;
-        const order = find(state, id);
-        if (!order || !bankAwaitingReview(order)) {
-          return;
-        }
-        order.bankReview.status = 'approved';
-        order.bankReview.flagged = [];
-        order.bankReview.notes.push({
-          at,
-          by: 'supplier',
-          fields: [],
-          message: 'Approved — mandate set up.',
-        });
-      },
-      prepare: id => ({ payload: { id, at: now() } }),
-    },
-
-    /*
-     * The customer's half, faked. In production the customer's app would
-     * write the corrected details through a shared backend and this app
-     * would be told; here the two order books are separate, so the loop
-     * needs a hand to close. The corrected values are generated by the
-     * thunk below, because a reducer has to stay pure.
-     */
-    customerBankUpdated: {
-      reducer(state, action) {
-        const { id, corrected, at } = action.payload;
-        const order = find(state, id);
-        if (!order || !bankWithCustomer(order) || !order.bank) {
-          return;
-        }
-        order.bankReview.flagged.forEach(field => {
-          order.bank[field] = corrected[field];
-        });
-        /* Their turn is over, so the supplier's window starts again. */
-        order.turnStartedAt = at;
-        if (order.status === 'overdue') {
-          order.status = 'awaiting_invoice';
-        }
-        order.bankReview.status = 'submitted';
-        order.bankReview.flagged = [];
-        order.bankReview.notes.push({
-          at,
-          by: 'customer',
-          fields: [],
-          message: 'Details updated and sent back for review.',
-        });
-      },
-      prepare: (id, corrected) => ({ payload: { id, corrected, at: now() } }),
-    },
-
-    invoiceDelivered: {
-      reducer(state, action) {
-        const { id, at } = action.payload;
-        const order = find(state, id);
-        if (!order || !awaitingWhatsappSend(order)) {
-          return;
-        }
-        order.status = 'completed';
-        order.deliveredAt = at;
-        if (state.readyToSendId === id) {
-          state.readyToSendId = null;
-        }
-      },
-      prepare: id => ({ payload: { id, at: now() } }),
-    },
-
     newOrderDismissed(state) {
       state.newOrderId = null;
     },
@@ -188,136 +166,75 @@ const ordersSlice = createSlice({
   },
 
   extraReducers: builder => {
-    /*
-     * Frontend-only timer, driven by the one clock in commonSlice. In
-     * production the 7-minute window has to be enforced server-side (a
-     * scheduled job, or a queue with a visibility timeout): a timer here
-     * dies the moment the app is backgrounded, and it is what raises the
-     * admin's push notification.
-     */
-    builder.addCase(clockTicked, (state, action) => {
-      const tick = action.payload;
-      state.items.forEach(order => {
-        // The timer runs until the invoice is uploaded, not until an
-        // acceptance — there is no acceptance.
-        if (order.invoiceStatus !== 'pending' || order.status === 'overdue') {
-          return;
-        }
+    builder
+      .addCase(fetchOrders.pending, state => {
+        state.status = 'loading';
+      })
+      .addCase(fetchOrders.fulfilled, (state, action) => {
         /*
-         * A Direct Debit order waiting on the customer to fix their bank
-         * details is not late: nobody at this end can move it.
+         * Diffed against the previous poll, not the seed book: an order
+         * that was already waiting when you signed in is not "new", but
+         * one that appears between two polls is exactly what the New
+         * Order popup exists for. Gated on `hasLoadedOnce` so the very
+         * first fetch after signing in never pops it for the whole book
+         * at once.
          */
-        if (bankWithCustomer(order)) {
+        if (state.hasLoadedOnce) {
+          const previous = new Map(state.items.map(o => [o.id, o]));
+          const freshlyAssigned = action.payload.find(
+            o => !previous.has(o.id),
+          );
+          if (freshlyAssigned) {
+            state.newOrderId = freshlyAssigned.id;
+          }
+          const freshlyReady = action.payload.find(o => {
+            const before = previous.get(o.id);
+            return (
+              awaitingWhatsappSend(o) &&
+              !(before && awaitingWhatsappSend(before))
+            );
+          });
+          if (freshlyReady) {
+            state.readyToSendId = freshlyReady.id;
+          }
+        }
+        state.items = action.payload;
+        state.hasLoadedOnce = true;
+        state.status = 'succeeded';
+        state.error = null;
+      })
+      .addCase(fetchOrders.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload ?? 'Could not load the order book.';
+      })
+
+      .addCase(uploadInvoice.fulfilled, (state, action) => {
+        upsert(state, action.payload);
+      })
+
+      .addCase(approveBankDetails.fulfilled, (state, action) => {
+        upsert(state, action.payload);
+      })
+
+      .addCase(requestBankChanges.fulfilled, (state, action) => {
+        upsert(state, action.payload);
+      })
+
+      .addCase(sendInvoice.fulfilled, (state, action) => {
+        if (!action.payload.sent) {
           return;
         }
-        const elapsed = tick - new Date(clockStartedAt(order)).getTime();
-        if (elapsed >= RESPONSE_TIMEOUT_MS) {
-          order.status = 'overdue';
+        upsert(state, action.payload.order);
+        if (state.readyToSendId === action.payload.order.id) {
+          state.readyToSendId = null;
         }
-      });
-    });
+      })
 
-    /* Signing out clears both alerts, as the context store did. */
-    builder.addCase(signedOut, state => {
-      state.newOrderId = null;
-      state.readyToSendId = null;
-    });
+      /* Signing out clears the book and both alerts, same as before. */
+      .addCase(signOut.fulfilled, () => initialState);
   },
 });
 
-export const {
-  orderAdded,
-  invoiceUploaded,
-  bankChangesRequested,
-  bankDetailsApproved,
-  customerBankUpdated,
-  invoiceDelivered,
-  newOrderDismissed,
-  readyToSendDismissed,
-} = ordersSlice.actions;
-
-/**
- * Stands in for the customer correcting their details and sending the
- * order back. Correcting a field is what the customer would do, so the
- * flagged fields come back changed.
- */
-export const simulateCustomerBankUpdate = id => (dispatch, getState) => {
-  const order = getState().orders.items.find(o => o.id === id);
-  if (!order || !order.bank) {
-    return;
-  }
-  dispatch(
-    customerBankUpdated(id, sampleBankDetails(order.bank.accountHolder)),
-  );
-};
-
-/**
- * Stands in for the backend routing a new customer order to an eligible
- * supplier. Returns the new order, or null when no active supplier
- * handles the type — the case a backend would flag to the admin rather
- * than silently dropping.
- */
-export const simulateNewOrder = orderType => dispatch => {
-  const type =
-    orderType ?? ORDER_TYPES[Math.floor(Math.random() * ORDER_TYPES.length)];
-  const supplier = routeOrder(type);
-  if (!supplier) {
-    return null;
-  }
-  const plan = planFor(type);
-  const customerName = randomCustomerName();
-  const order = {
-    id: 'order-' + Date.now(),
-    orderNumber: nextOrderNumber(),
-    customerName,
-    customerPhone: '07700 900' + Math.floor(100 + Math.random() * 900),
-    reg: 'AB' + Math.floor(10 + Math.random() * 89) + ' XYZ',
-    vehicleModel: 'Ford Focus 1.5 EcoBlue',
-    orderType: type,
-    plan: plan.plan,
-    items: [{ name: plan.item, qty: 1 }],
-    total: plan.total,
-    orderDate: new Date().toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    }),
-    deliveryAddress: '10 Test Street, London, E1 6AN',
-    supplierId: supplier.id,
-    assignedAt: new Date().toISOString(),
-    status: 'awaiting_invoice',
-    invoiceStatus: 'pending',
-    communicationMethod: 'email',
-    whatsappRequested: false,
-    v62Requested: false,
-    /* Only Direct Debit needs a mandate, so only it carries one. */
-    ...(type === 'dd'
-      ? {
-          bank: sampleBankDetails(customerName),
-          bankReview: { status: 'submitted', flagged: [], notes: [] },
-        }
-      : null),
-  };
-  dispatch(orderAdded(order));
-  return order;
-};
-
-/**
- * Opens the phone's share sheet for a WhatsApp order and records the
- * delivery if the admin actually shared. Resolves false when they backed
- * out, so a dismissed sheet never marks the order as delivered.
- */
-export const sendInvoice = id => async (dispatch, getState) => {
-  const order = getState().orders.items.find(o => o.id === id);
-  if (!order || !awaitingWhatsappSend(order)) {
-    return false;
-  }
-  const shared = await shareInvoice(order);
-  if (shared) {
-    dispatch(invoiceDelivered(id));
-  }
-  // Dismissed sheet: leave it queued rather than claiming a send.
-  return shared;
-};
+export const { newOrderDismissed, readyToSendDismissed } = ordersSlice.actions;
 
 export default ordersSlice.reducer;

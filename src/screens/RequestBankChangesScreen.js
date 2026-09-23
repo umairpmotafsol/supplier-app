@@ -34,6 +34,7 @@ export default function RequestBankChangesScreen() {
 
   const [picked, setPicked] = useState([]);
   const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
 
   const order = orders.find(o => o.id === route.params.orderId);
 
@@ -58,7 +59,7 @@ export default function RequestBankChangesScreen() {
         : [...current, field],
     );
 
-  const onSend = () => {
+  const onSend = async () => {
     if (picked.length === 0) {
       toast({ message: 'Tick what needs correcting', icon: 'info' });
       return;
@@ -67,9 +68,15 @@ export default function RequestBankChangesScreen() {
       toast({ message: 'Say what is wrong with it', icon: 'info' });
       return;
     }
-    requestBankChanges(order.id, picked, message.trim());
-    toast({ message: 'Sent back to the customer', icon: 'check' });
-    navigation.goBack();
+    setSending(true);
+    try {
+      await requestBankChanges(order.id, picked, message.trim());
+      toast({ message: 'Sent back to the customer', icon: 'check' });
+      navigation.goBack();
+    } catch {
+      // The axios layer has already toasted why; stay put and let them retry.
+      setSending(false);
+    }
   };
 
   return (
@@ -138,7 +145,12 @@ export default function RequestBankChangesScreen() {
       </Body>
 
       <Dock standalone>
-        <Cta label="Send back to customer" icon="send" onPress={onSend} />
+        <Cta
+          label={sending ? 'Sending…' : 'Send back to customer'}
+          icon="send"
+          disabled={sending}
+          onPress={onSend}
+        />
       </Dock>
     </Screen>
   );

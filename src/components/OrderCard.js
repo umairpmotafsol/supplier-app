@@ -23,7 +23,6 @@ import {
   canUploadInvoice,
   gbp,
   statusInfo,
-  supplierName,
 } from '../data/mock';
 import Icon, { iconSize } from './atoms/Icon';
 import { Badge, Cta, Plate } from './ui';
@@ -61,7 +60,9 @@ export function OrderCard({ order, now, onPress, onUpload, showSupplier }) {
           </Text>
           <Text style={styles.meta} numberOfLines={1}>
             {ORDER_TYPE_LABEL[order.orderType]} · {gbp(order.total)}
-            {showSupplier ? ' · ' + supplierName(order.supplierId) : ''}
+            {showSupplier && order.supplier
+              ? ' · ' + order.supplier.name
+              : ''}
           </Text>
         </View>
       </View>

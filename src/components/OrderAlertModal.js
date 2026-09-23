@@ -64,7 +64,7 @@ export function OrderAlertModal({
             <View style={common.fill}>
               <Text style={styles.orderNumber}>{order.orderNumber}</Text>
               <Text style={styles.who} numberOfLines={1}>
-                {showCustomer ? order.customerName : order.vehicleModel}
+                {showCustomer ? order.customer?.name : order.vehicleModel}
               </Text>
             </View>
           </View>

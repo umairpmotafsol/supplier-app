@@ -31,7 +31,6 @@ import {
   Cta,
   Eyebrow,
   H2,
-  Hint,
   List,
   ListItem,
   SummaryRow,
@@ -43,6 +42,7 @@ import {
   bankAwaitingReview,
   bankWithCustomer,
   canUploadInvoice,
+  formatTimeAgo,
   gbp,
   hasBankReview,
   statusInfo,
@@ -55,8 +55,7 @@ export default function OrderDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const toast = useToast();
-  const { orders, now, approveBankDetails, simulateCustomerBankUpdate } =
-    useSupplier();
+  const { orders, now, approveBankDetails } = useSupplier();
 
   const order = orders.find(o => o.id === route.params.orderId);
 
@@ -75,9 +74,13 @@ export default function OrderDetailScreen() {
   const canUpload = canUploadInvoice(order);
   const review = order.bankReview;
 
-  const onApprove = () => {
-    approveBankDetails(order.id);
-    toast({ message: 'Bank details approved', icon: 'check' });
+  const onApprove = async () => {
+    try {
+      await approveBankDetails(order.id);
+      toast({ message: 'Bank details approved', icon: 'check' });
+    } catch {
+      // The axios layer has already toasted why.
+    }
   };
 
   return (
@@ -216,33 +219,14 @@ export default function OrderDetailScreen() {
                 />
               </View>
             ) : null}
-
-            {bankWithCustomer(order) ? (
-              <>
-                <Hint icon="info">
-                  "Simulate customer update" stands in for the customer
-                  correcting their details in their own app — the two apps keep
-                  separate order books in this prototype, so nothing arrives
-                  here on its own.
-                </Hint>
-                <Cta
-                  variant="ghost"
-                  label="Simulate customer update"
-                  onPress={() => {
-                    simulateCustomerBankUpdate(order.id);
-                    toast({ message: 'Customer sent it back', icon: 'check' });
-                  }}
-                  style={{ marginBottom: s(16) }}
-                />
-              </>
-            ) : null}
           </>
         ) : null}
 
         <Eyebrow>Invoice</Eyebrow>
         {order.invoicePhoto ? (
           <Banner icon="check" tone="green" style={{ marginBottom: s(16) }}>
-            Invoice uploaded — {order.invoicePhoto.uri.replace('mock://', '')}
+            Invoice uploaded — captured at{' '}
+            {formatTimeAgo(order.invoicePhoto.capturedAt)}
           </Banner>
         ) : canUpload ? (
           <Banner icon="camera" tone="orange" style={{ marginBottom: s(16) }}>

@@ -21,7 +21,7 @@
  * @format
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -33,8 +33,11 @@ import { PersistGate } from 'redux-persist/integration/react';
 import CustomStatusBar from './src/components/atoms/CustomStatusBar';
 import { ToastProvider } from './src/components/molecules/Toast';
 import AppNavigation from './src/navigation/appNavigation';
+import { setApiEventHandlers } from './src/resources/axios/AxiosInterceptorFunction';
 import ClockDriver from './src/store/ClockDriver';
+import OrdersPoller from './src/store/OrdersPoller';
 import defaultStore, { persistor as defaultPersistor } from './src/store';
+import { restoreSession, signOut } from './src/store/auth/authSlice';
 import { colors } from './src/theme/tokens';
 
 /**
@@ -42,6 +45,20 @@ import { colors } from './src/theme/tokens';
  * against a fresh store; the app itself uses the defaults.
  */
 function App({ store = defaultStore, persistor = defaultPersistor }) {
+  useEffect(
+    () =>
+      setApiEventHandlers({
+        /* A refresh token that no longer works is a sign-out, not an error screen. */
+        onUnauthorized: () => store.dispatch(signOut()),
+      }),
+    [store],
+  );
+
+  useEffect(() => {
+    /* A stored token, if any, is checked against the API on launch. */
+    store.dispatch(restoreSession());
+  }, [store]);
+
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
@@ -52,6 +69,7 @@ function App({ store = defaultStore, persistor = defaultPersistor }) {
               <BottomSheetModalProvider>
                 <ToastProvider>
                   <ClockDriver />
+                  <OrdersPoller />
                   <AppNavigation />
                 </ToastProvider>
               </BottomSheetModalProvider>
